@@ -1,0 +1,6 @@
+services:
+  app:
+    build: .
+    container_name: validador-xm-qe
+    env_file:
+      - .env

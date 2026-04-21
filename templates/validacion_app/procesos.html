@@ -1,0 +1,251 @@
+{% extends 'base.html' %}
+
+{% block title %}Ejecutar Extracción - Validador OMS SDL{% endblock %}
+
+{% block extra_css %}
+<style>
+    .icon-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        justify-content: center;
+    }
+    
+    .icon-btn svg {
+        width: 18px;
+        height: 18px;
+        fill: none;
+        stroke: #666;
+        stroke-width: 2.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        transition: stroke 0.3s ease;
+    }
+    
+    .icon-btn:hover svg {
+        stroke: white;
+    }
+    [data-theme="dark"] .icon-btn svg { stroke: var(--color-text-sub); }
+    [data-theme="dark"] .icon-btn:hover svg { stroke: #111827; }
+
+    /* ── Modo oscuro: modal SP7 ── */
+    [data-theme="dark"] #modal-sp7 > div {
+        background: var(--bg-container) !important;
+        border-top-color: var(--color-primary) !important;
+    }
+    [data-theme="dark"] #modal-sp7 h3 {
+        color: var(--color-primary) !important;
+    }
+    [data-theme="dark"] #modal-sp7 p {
+        color: var(--color-text) !important;
+    }
+    [data-theme="dark"] #modal-sp7 strong {
+        color: var(--color-text) !important;
+    }
+    /* Caja info archivo (div de fondo #f1f8f4 con monospace) */
+    [data-theme="dark"] #modal-sp7 > div > div[style*="monospace"] {
+        background: var(--bg-page) !important;
+        border-color: var(--color-primary) !important;
+        color: var(--color-text) !important;
+    }
+    [data-theme="dark"] #modal-sp7 > div > div[style*="monospace"] div[style*="color:#666"],
+    [data-theme="dark"] #modal-sp7 > div > div[style*="monospace"] div[style*="color: #666"] {
+        color: var(--color-text-sub) !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="nav-buttons">
+    <a href="{% url 'validacion_app:index' %}" class="btn btn-info">← Volver al Inicio</a>
+</div>
+
+<h2 style="color: #006633; margin-bottom: 20px; text-align: center;">Proceso de Extracción de Datos</h2>
+<p style="text-align: center; color: #666666; margin-bottom: 30px;">
+    Este proceso creará los archivos consolidados QE, SP7 y XM
+</p>
+
+<div class="button-grid">
+    <div style="text-align: center;">
+        <button class="btn btn-primary icon-btn" id="btn-consolidado-qe">
+            <svg viewBox="0 0 24 24" fill="none">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="#666" stroke-width="2.5"/>
+                <polyline points="14 2 14 8 20 8" stroke="#666" stroke-width="2.5"/>
+                <line x1="16" y1="13" x2="8" y2="13" stroke="#666" stroke-width="2.5"/>
+                <line x1="16" y1="17" x2="8" y2="17" stroke="#666" stroke-width="2.5"/>
+            </svg>
+            Crear CONSOLIDADO_QE
+        </button>
+    </div>
+    
+    <div style="text-align: center;">
+        <button class="btn btn-success icon-btn" id="btn-consolidado-sp7">
+            <svg viewBox="0 0 24 24" fill="none">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="#666" stroke-width="2.5"/>
+                <polyline points="14 2 14 8 20 8" stroke="#666" stroke-width="2.5"/>
+                <line x1="16" y1="13" x2="8" y2="13" stroke="#666" stroke-width="2.5"/>
+                <line x1="16" y1="17" x2="8" y2="17" stroke="#666" stroke-width="2.5"/>
+            </svg>
+            Crear CONSOLIDADO_SP7
+        </button>
+    </div>
+    
+    <div style="text-align: center;">
+        <button class="btn btn-warning icon-btn" id="btn-consolidado-xm">
+            <svg viewBox="0 0 24 24" fill="none">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="#666" stroke-width="2.5"/>
+                <polyline points="14 2 14 8 20 8" stroke="#666" stroke-width="2.5"/>
+                <line x1="16" y1="13" x2="8" y2="13" stroke="#666" stroke-width="2.5"/>
+                <line x1="16" y1="17" x2="8" y2="17" stroke="#666" stroke-width="2.5"/>
+            </svg>
+            Crear CONSOLIDADO_XM
+        </button>
+    </div>
+</div>
+
+<div class="loading">
+    <div class="spinner"></div>
+    <p style="margin-top: 15px; color: #006633; font-weight: bold;">Procesando...</p>
+</div>
+
+<div id="console-output" class="console"></div>
+
+<!-- Modal: descarga previa SP7 -->
+<div id="modal-sp7" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:1000; align-items:center; justify-content:center;">
+    <div style="background:white; border-radius:12px; padding:32px 36px; max-width:500px; width:90%; box-shadow:0 8px 32px rgba(0,0,0,0.2); border-top:4px solid #006633;">
+        <h3 style="color:#006633; margin-bottom:12px;">⚡ Descarga previa encontrada</h3>
+        <p style="color:#444; margin-bottom:6px;">Se encontró un archivo del período <strong id="sp7-periodo"></strong>:</p>
+        <div style="background:#f1f8f4; border:1px solid #b2dfdb; border-radius:8px; padding:12px 16px; margin:14px 0; font-family:monospace; font-size:13px; color:#333;">
+            <div>📄 <strong id="sp7-filename"></strong></div>
+            <div style="margin-top:6px; color:#666;">📅 Modificado: <span id="sp7-fecha"></span> &nbsp;|&nbsp; 💾 <span id="sp7-size"></span> KB</div>
+        </div>
+        <p style="color:#555; font-size:14px; margin-bottom:20px;">¿Desea usar este archivo existente o descargar uno nuevo desde la API SP7?</p>
+        <div style="display:flex; gap:12px; justify-content:flex-end; flex-wrap:wrap;">
+            <button class="btn" onclick="iniciarSP7(false)">🌐 Descargar nuevo desde API</button>
+            <button class="btn btn-primary" onclick="iniciarSP7(true)">⚡ Usar existente</button>
+            <button class="btn" onclick="document.getElementById('modal-sp7').style.display='none'" style="border-color:#999; color:#999;">✖ Cancelar</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function ejecutarProceso(url, nombre) {
+        clearConsole();
+        appendToConsole(`=== Iniciando creación de ${nombre} ===\n`);
+        
+        showLoading();
+        
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading();
+            
+            if (data.output) {
+                appendToConsole(data.output);
+            }
+            if (data.errors) {
+                appendToConsole('ERRORES:\n' + data.errors);
+            }
+            
+            if (data.success) {
+                showMessage(data.message, 'success');
+                appendToConsole(`\n[OK] ${nombre} completado exitosamente\n`);
+            } else {
+                showMessage(data.message, 'error');
+                appendToConsole(`\n[ERROR] Error al crear ${nombre}\n`);
+            }
+        })
+        .catch(error => {
+            hideLoading();
+            appendToConsole('Error: ' + error);
+            showMessage(`Error al crear ${nombre}`, 'error');
+        });
+    }
+
+    function ejecutarProcesoStream(url, nombre) {
+        clearConsole();
+        appendToConsole(`=== Iniciando creación de ${nombre} ===\n`);
+        showLoading();
+
+        // Deshabilitar todos los botones durante el proceso
+        document.querySelectorAll('.btn').forEach(b => b.disabled = true);
+
+        const evtSource = new EventSource(url);
+
+        evtSource.onmessage = function(event) {
+            if (event.data) {
+                appendToConsole(event.data + '\n');
+            }
+        };
+
+        evtSource.addEventListener('done', function(event) {
+            evtSource.close();
+            hideLoading();
+            document.querySelectorAll('.btn').forEach(b => b.disabled = false);
+            const isSuccess = event.data === 'success';
+            if (isSuccess) {
+                showMessage(`${nombre} creado correctamente`, 'success');
+                appendToConsole(`\n[OK] ${nombre} completado exitosamente\n`);
+            } else {
+                const msg = event.data.replace('error:', '');
+                showMessage(`Error al crear ${nombre}: ${msg}`, 'error');
+                appendToConsole(`\n[ERROR] Error al crear ${nombre}\n`);
+            }
+        });
+
+        evtSource.onerror = function() {
+            evtSource.close();
+            hideLoading();
+            document.querySelectorAll('.btn').forEach(b => b.disabled = false);
+            appendToConsole('\n[ERROR] Conexión SSE perdida o proceso finalizado\n');
+        };
+    }
+
+    document.getElementById('btn-consolidado-qe').addEventListener('click', function() {
+        ejecutarProcesoStream('{% url "validacion_app:crear_consolidado_qe_stream" %}', 'CONSOLIDADO_QE');
+    });
+
+    document.getElementById('btn-consolidado-sp7').addEventListener('click', function() {
+        verificarSP7Previo();
+    });
+
+    document.getElementById('btn-consolidado-xm').addEventListener('click', function() {
+        ejecutarProcesoStream('{% url "validacion_app:crear_consolidado_xm_stream" %}', 'CONSOLIDADO_XM');
+    });
+
+    function verificarSP7Previo() {
+        fetch('{% url "validacion_app:check_sp7_previo" %}')
+            .then(r => r.json())
+            .then(data => {
+                if (data.found) {
+                    document.getElementById('sp7-periodo').textContent = data.periodo;
+                    document.getElementById('sp7-filename').textContent = data.filename;
+                    document.getElementById('sp7-fecha').textContent = data.fecha_mod;
+                    document.getElementById('sp7-size').textContent = data.size_kb;
+                    const modal = document.getElementById('modal-sp7');
+                    modal.style.display = 'flex';
+                } else {
+                    // No hay archivo previo detectado en la verificación inicial.
+                    // Se ejecuta sin forzar descarga para permitir fallback local en backend.
+                    iniciarSP7(true);
+                }
+            })
+            .catch(() => iniciarSP7(true));
+    }
+
+    function iniciarSP7(usarExistente) {
+        document.getElementById('modal-sp7').style.display = 'none';
+        const url = '{% url "validacion_app:crear_consolidado_sp7_stream" %}'
+                    + (usarExistente ? '' : '?forzar_descarga=true');
+        ejecutarProcesoStream(url, 'CONSOLIDADO_SP7');
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,668 @@
+{% extends 'base.html' %}
+
+{% block title %}Validación de Datos - Validador OMS SDL{% endblock %}
+
+{% block extra_css %}
+<style>
+    .icon-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        justify-content: center;
+    }
+    
+    .icon-btn svg {
+        width: 18px;
+        height: 18px;
+        fill: none;
+        stroke: #666;
+        stroke-width: 2.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        transition: stroke 0.3s ease;
+    }
+    
+    .icon-btn:hover svg {
+        stroke: white;
+    }
+    [data-theme="dark"] .icon-btn svg { stroke: var(--color-text-sub); }
+    [data-theme="dark"] .icon-btn:hover svg { stroke: #111827; }
+
+    .dashboard {
+        background: white;
+        border: 2px solid #006633;
+        border-radius: 10px;
+        padding: 25px;
+        margin-top: 30px;
+        display: none;
+    }
+    
+    .dashboard.active {
+        display: block;
+    }
+    
+    .dashboard-header {
+        text-align: center;
+        color: #006633;
+        margin-bottom: 25px;
+        padding-bottom: 15px;
+        border-bottom: 2px solid #e8e8e8;
+    }
+    
+    .dashboard-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+        margin-top: 20px;
+    }
+    
+    .stat-card {
+        background: #f8f9fa;
+        border-left: 4px solid #006633;
+        padding: 20px;
+        border-radius: 8px;
+        transition: all 0.2s;
+        cursor: pointer;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .stat-card::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(0, 102, 51, 0.05) 0%, transparent 70%);
+        opacity: 0;
+        transition: opacity 0.3s;
+    }
+    
+    .stat-card:hover::before {
+        opacity: 1;
+    }
+    
+    .stat-card::after {
+        content: '�️ Ver registros';
+        position: absolute;
+        bottom: 8px;
+        right: 12px;
+        font-size: 11px;
+        color: #006633;
+        font-weight: 600;
+        opacity: 0;
+        transition: opacity 0.2s;
+        background: rgba(255, 255, 255, 0.9);
+        padding: 4px 8px;
+        border-radius: 4px;
+    }    
+    .total-card::after {
+        content: '👁️ Ver todos';
+    }    
+    .stat-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 6px 20px rgba(0, 102, 51, 0.2);
+        background: #e8f5e9;
+        border-left-width: 6px;
+    }
+    
+    .stat-card:hover::after {
+        opacity: 1;
+    }
+    
+    .stat-card:active {
+        transform: translateY(-2px);
+        box-shadow: 0 3px 10px rgba(0, 102, 51, 0.15);
+    }
+    
+    .stat-label {
+        font-size: 0.9em;
+        color: #666;
+        margin-bottom: 8px;
+        font-weight: 600;
+    }
+    
+    .stat-value {
+        font-size: 1.8em;
+        color: #006633;
+        font-weight: bold;
+        margin-bottom: 5px;
+    }
+    
+    .stat-percentage {
+        font-size: 0.85em;
+        color: #999;
+    }
+    
+    .total-card {
+        background: linear-gradient(135deg, #006633 0%, #009933 100%);
+        color: white;
+        border-left: 4px solid #004d26;
+        grid-column: 1 / -1;
+    }
+    
+    .total-card:hover {
+        background: linear-gradient(135deg, #004d26 0%, #006633 100%);
+        border-left-width: 6px;
+    }
+    
+    .total-card::after {
+        color: white;
+        background: rgba(0, 0, 0, 0.3);
+    }
+    
+    .total-card .stat-label,
+    .total-card .stat-value,
+    .total-card .stat-percentage {
+        color: white;
+    }
+    
+    .tabla-registros {
+        background: white;
+        border: 2px solid #006633;
+        border-radius: 10px;
+        padding: 25px;
+        margin-top: 30px;
+        display: none;
+    }
+    
+    .tabla-registros.active {
+        display: block;
+    }
+    
+    .tabla-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 2px solid #e8e8e8;
+    }
+    
+    .tabla-header h3 {
+        color: #006633;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .btn-descargar {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 20px;
+        background: white;
+        border: 2px solid #006633;
+        color: #006633;
+        border-radius: 6px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-descargar svg {
+        width: 18px;
+        height: 18px;
+        fill: none;
+        stroke: #666;
+        stroke-width: 2.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        transition: stroke 0.3s ease;
+    }
+    
+    .btn-descargar:hover {
+        background: #006633;
+        color: white;
+        box-shadow: 0 4px 12px rgba(0, 102, 51, 0.2);
+    }
+    
+    .btn-descargar:hover svg {
+        stroke: white;
+    }
+    
+    .tabla-container {
+        max-height: 500px;
+        overflow: auto;
+        border: 1px solid #e8e8e8;
+        border-radius: 8px;
+        position: relative;
+    }
+    
+    .tabla-datos {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9em;
+        white-space: nowrap;
+    }
+    
+    .tabla-datos thead {
+        position: sticky;
+        top: 0;
+        background: #006633;
+        color: white;
+        z-index: 10;
+    }
+    
+    .tabla-datos thead th {
+        padding: 12px 15px;
+        text-align: left;
+        font-weight: 600;
+        border-bottom: 2px solid #004d26;
+        white-space: nowrap;
+        min-width: 120px;
+    }
+    
+    .tabla-datos tbody tr {
+        transition: background 0.2s;
+    }
+    
+    .tabla-datos tbody tr:nth-child(even) {
+        background: #f8f9fa;
+    }
+    
+    .tabla-datos tbody tr:hover {
+        background: #e8f5e9;
+    }
+    
+    .tabla-datos tbody td {
+        padding: 10px 15px;
+        border-bottom: 1px solid #e8e8e8;
+        white-space: nowrap;
+    }
+    
+    .tabla-info {
+        margin-top: 15px;
+        padding: 12px;
+        background: #f8f9fa;
+        border-radius: 6px;
+        color: #666;
+        font-size: 0.9em;
+        text-align: center;
+    }
+
+    /* ── Modo oscuro: Dashboard y tabla de registros ── */
+    [data-theme="dark"] .dashboard,
+    [data-theme="dark"] .tabla-registros {
+        background: var(--bg-container);
+        border-color: var(--color-primary);
+    }
+    [data-theme="dark"] .dashboard-header {
+        border-bottom-color: var(--border-card);
+    }
+    [data-theme="dark"] .stat-card {
+        background: var(--bg-page);
+    }
+    [data-theme="dark"] .stat-card:hover {
+        background: #1a3a28;
+    }
+    [data-theme="dark"] .stat-card::after {
+        background: rgba(0,0,0,0.55);
+        color: var(--color-primary);
+    }
+    [data-theme="dark"] .stat-label { color: var(--color-text-sub); }
+    [data-theme="dark"] .stat-value { color: var(--color-primary); }
+    [data-theme="dark"] .stat-percentage { color: var(--color-text-sub); }
+    [data-theme="dark"] .tabla-header { border-bottom-color: var(--border-card); }
+    [data-theme="dark"] .tabla-header h3 { color: var(--color-primary); }
+    [data-theme="dark"] .btn-descargar {
+        background: var(--bg-btn);
+        border-color: var(--color-primary);
+        color: var(--color-primary);
+    }
+    [data-theme="dark"] .btn-descargar:hover {
+        background: var(--color-primary);
+        color: #111827;
+    }
+    [data-theme="dark"] .tabla-container { border-color: var(--border-card); }
+    [data-theme="dark"] .tabla-datos tbody tr:nth-child(even) { background: var(--bg-page); }
+    [data-theme="dark"] .tabla-datos tbody tr:hover { background: #1a3a28; }
+    [data-theme="dark"] .tabla-datos tbody td { border-bottom-color: var(--border-card); }
+    [data-theme="dark"] .tabla-info {
+        background: var(--bg-page);
+        color: var(--color-text-sub);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="nav-buttons">
+    <a href="{% url 'validacion_app:index' %}" class="btn btn-info">← Volver al Inicio</a>
+</div>
+
+<h2 style="color: #006633; margin-bottom: 20px; text-align: center;">Validación de Datos</h2>
+<p style="text-align: center; color: #666666; margin-bottom: 30px;">
+    Este proceso validará los archivos consolidados SP7, QE y XM
+</p>
+
+<div class="button-grid">
+    <div style="text-align: center;">
+        <button class="btn btn-success icon-btn" id="btn-validar-sp7">
+            <svg viewBox="0 0 24 24" fill="none">
+                <polyline points="20 6 9 17 4 12" stroke="#666" stroke-width="2.5"/>
+            </svg>
+        Validar CONSOLIDADO_SP7
+        </button>
+    </div>
+    
+    <div style="text-align: center;">
+        <button class="btn btn-primary icon-btn" id="btn-validar-qe">
+            <svg viewBox="0 0 24 24" fill="none">
+                <polyline points="20 6 9 17 4 12" stroke="#666" stroke-width="2.5"/>
+            </svg>
+        Validar CONSOLIDADO_QE
+        </button>
+    </div>
+    
+    <div style="text-align: center;">
+        <button class="btn btn-warning icon-btn" id="btn-validar-xm">
+            <svg viewBox="0 0 24 24" fill="none">
+                <polyline points="20 6 9 17 4 12" stroke="#666" stroke-width="2.5"/>
+            </svg>
+        Validar CONSOLIDADO_XM
+        </button>
+    </div>
+</div>
+
+<div class="loading">
+    <div class="spinner"></div>
+    <p style="margin-top: 15px; color: #006633; font-weight: bold;">Validando...</p>
+</div>
+
+<div id="dashboard-sp7" class="dashboard">
+    <div class="dashboard-header">
+        <h3 style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+            <svg viewBox="0 0 24 24" style="width: 24px; height: 24px; fill: none; stroke: #006633; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round;">
+                <line x1="18" y1="20" x2="18" y2="10" stroke="#006633" stroke-width="2.5"/>
+                <line x1="12" y1="20" x2="12" y2="4" stroke="#006633" stroke-width="2.5"/>
+                <line x1="6" y1="20" x2="6" y2="14" stroke="#006633" stroke-width="2.5"/>
+            </svg>
+            Dashboard de Validación - CONSOLIDADO_SP7
+        </h3>
+        <p style="color: #666; margin-top: 10px; font-size: 0.95em;">Resultados del análisis de la columna ESTADO_VALIDACION</p>
+    </div>
+    <div id="dashboard-content"></div>
+</div>
+
+<div id="tabla-registros" class="tabla-registros">
+    <div id="tabla-contenido"></div>
+</div>
+
+<div id="console-output" class="console"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function ejecutarValidacion(url, nombre) {
+        clearConsole();
+        appendToConsole(`=== Iniciando validación de ${nombre} ===\n`);
+        
+        showLoading();
+        
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading();
+            
+            if (data.output) {
+                appendToConsole(data.output);
+            }
+            if (data.errors) {
+                appendToConsole('ERRORES:\n' + data.errors);
+            }
+            
+            if (data.success) {
+                showMessage(data.message, 'success');
+                appendToConsole(`\n[OK] Validación de ${nombre} completada exitosamente\n`);
+                
+                // Mostrar dashboard si es validación SP7 y hay datos
+                if (nombre === 'CONSOLIDADO_SP7' && data.dashboard) {
+                    mostrarDashboard(data.dashboard);
+                }
+            } else {
+                showMessage(data.message, 'error');
+                appendToConsole(`\n[ERROR] Error al validar ${nombre}\n`);
+            }
+        })
+        .catch(error => {
+            hideLoading();
+            appendToConsole('Error: ' + error);
+            showMessage(`Error al validar ${nombre}`, 'error');
+        });
+    }
+
+    function ejecutarValidacionStream(url, nombre) {
+        clearConsole();
+        appendToConsole(`=== Iniciando validación de ${nombre} ===\n`);
+        showLoading();
+        document.querySelectorAll('.btn').forEach(b => b.disabled = true);
+
+        const evtSource = new EventSource(url);
+
+        evtSource.onmessage = function(event) {
+            if (event.data) {
+                appendToConsole(event.data + '\n');
+            }
+        };
+
+        evtSource.addEventListener('done', function(event) {
+            evtSource.close();
+            hideLoading();
+            document.querySelectorAll('.btn').forEach(b => b.disabled = false);
+
+            try {
+                const payload = JSON.parse(event.data);
+                if (payload.status === 'success') {
+                    showMessage(`Validación de ${nombre} completada`, 'success');
+                    appendToConsole(`\n[OK] Validación de ${nombre} completada exitosamente\n`);
+                    if (nombre === 'CONSOLIDADO_SP7' && payload.dashboard) {
+                        mostrarDashboard(payload.dashboard);
+                    }
+                } else {
+                    showMessage(`Error al validar ${nombre}`, 'error');
+                    appendToConsole(`\n[ERROR] Error al validar ${nombre}\n`);
+                }
+            } catch(e) {
+                // Formato legacy "error:mensaje"
+                const msg = event.data.replace('error:', '');
+                showMessage(`Error al validar ${nombre}: ${msg}`, 'error');
+                appendToConsole(`\n[ERROR] Error al validar ${nombre}\n`);
+            }
+        });
+
+        evtSource.onerror = function() {
+            evtSource.close();
+            hideLoading();
+            document.querySelectorAll('.btn').forEach(b => b.disabled = false);
+            appendToConsole('\n[ERROR] Conexión SSE perdida o proceso finalizado\n');
+        };
+    }
+    
+    function mostrarDashboard(dashboardData) {
+        const dashboard = document.getElementById('dashboard-sp7');
+        const content = document.getElementById('dashboard-content');
+        
+        if (!dashboardData) return;
+        
+        let html = '<div class="dashboard-stats">';
+        
+        // Tarjeta de total
+        html += `
+            <div class="stat-card total-card" data-estado="TODOS" data-archivo="${dashboardData.archivo}" title="Click para descargar todos los registros">
+                <div class="stat-label">Total de Registros en ${dashboardData.archivo}</div>
+                <div class="stat-value">${dashboardData.total_registros.toLocaleString()}</div>
+            </div>
+        `;
+        
+        // Tarjetas de estados
+        const estados = Object.entries(dashboardData.estado_counts);
+        estados.sort((a, b) => b[1] - a[1]); // Ordenar por cantidad descendente
+        
+        for (const [estado, count] of estados) {
+            const percentage = dashboardData.estado_percentages[estado];
+            html += `
+                <div class="stat-card" data-estado="${estado}" data-archivo="${dashboardData.archivo}" title="Click para descargar registros con estado: ${estado}">
+                    <div class="stat-label">${estado || 'Sin Estado'}</div>
+                    <div class="stat-value">${count.toLocaleString()}</div>
+                    <div class="stat-percentage">${percentage}% del total</div>
+                </div>
+            `;
+        }
+        
+        html += '</div>';
+        
+        content.innerHTML = html;
+        dashboard.classList.add('active');
+        
+        // Agregar event listeners a las tarjetas para descargar CSV
+        agregarEventosDescargaCSV();
+        
+        // Scroll suave al dashboard
+        setTimeout(() => {
+            dashboard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 100);
+    }
+    
+    function agregarEventosDescargaCSV() {
+        const statCards = document.querySelectorAll('.stat-card');
+        statCards.forEach(card => {
+            card.addEventListener('click', function() {
+                const estado = this.getAttribute('data-estado');
+                const archivo = this.getAttribute('data-archivo');
+                cargarYMostrarTabla(estado, archivo);
+            });
+        });
+    }
+    
+    function cargarYMostrarTabla(estado, archivo) {
+        // Mostrar loading
+        showLoading();
+        
+        // Crear URL para obtener datos
+        const url = '{% url "validacion_app:obtener_datos_filtrados" %}' + `?estado=${encodeURIComponent(estado)}&archivo=${encodeURIComponent(archivo)}`;
+        
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                hideLoading();
+                
+                if (data.success) {
+                    mostrarTablaRegistros(data.registros, data.columnas, estado, archivo, data.total);
+                } else {
+                    showMessage('Error al cargar datos: ' + data.message, 'error');
+                }
+            })
+            .catch(error => {
+                hideLoading();
+                showMessage('Error de conexión: ' + error, 'error');
+            });
+    }
+    
+    function mostrarTablaRegistros(registros, columnas, estado, archivo, total) {
+        const tablaDiv = document.getElementById('tabla-registros');
+        const contenido = document.getElementById('tabla-contenido');
+        
+        // Construir encabezado
+        let html = `
+            <div class="tabla-header">
+                <h3>
+                    <svg viewBox="0 0 24 24" style="width: 24px; height: 24px; fill: none; stroke: #006633; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round;">
+                        <rect x="3" y="3" width="18" height="18" rx="2" stroke="#006633" stroke-width="2.5"/>
+                        <line x1="9" y1="3" x2="9" y2="21" stroke="#006633" stroke-width="2.5"/>
+                        <line x1="3" y1="9" x2="21" y2="9" stroke="#006633" stroke-width="2.5"/>
+                    </svg>
+                    Registros: ${estado === 'TODOS' ? 'Todos' : estado}
+                </h3>
+                <button class="btn-descargar" onclick="descargarCSVDesdeTabla('${estado}', '${archivo}')">
+                    <svg viewBox="0 0 24 24" fill="none">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="#666" stroke-width="2.5"/>
+                        <polyline points="7 10 12 15 17 10" stroke="#666" stroke-width="2.5"/>
+                        <line x1="12" y1="15" x2="12" y2="3" stroke="#666" stroke-width="2.5"/>
+                    </svg>
+                    Descargar CSV
+                </button>
+            </div>
+        `;
+        
+        // Construir tabla
+        if (registros.length > 0) {
+            html += '<div class="tabla-container">';
+            html += '<table class="tabla-datos">';
+            
+            // Encabezados
+            html += '<thead><tr>';
+            columnas.forEach(col => {
+                html += `<th>${col}</th>`;
+            });
+            html += '</tr></thead>';
+            
+            // Datos
+            html += '<tbody>';
+            registros.forEach(registro => {
+                html += '<tr>';
+                columnas.forEach(col => {
+                    const valor = registro[col] !== null && registro[col] !== undefined ? registro[col] : '';
+                    html += `<td>${valor}</td>`;
+                });
+                html += '</tr>';
+            });
+            html += '</tbody>';
+            html += '</table>';
+            html += '</div>';
+            
+            html += `<div class="tabla-info">Mostrando ${registros.length.toLocaleString()} de ${total.toLocaleString()} registros totales</div>`;
+        } else {
+            html += '<div class="tabla-info">No hay registros para mostrar</div>';
+        }
+        
+        contenido.innerHTML = html;
+        tablaDiv.classList.add('active');
+        
+        // Scroll suave a la tabla
+        setTimeout(() => {
+            tablaDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 100);
+    }
+    
+    function descargarCSVDesdeTabla(estado, archivo) {
+        // Mostrar mensaje de descarga
+        showMessage(`Descargando registros: ${estado === 'TODOS' ? 'Todos' : estado}...`, 'info');
+        
+        // Crear URL de descarga
+        const url = '{% url "validacion_app:descargar_csv_filtrado" %}' + `?estado=${encodeURIComponent(estado)}&archivo=${encodeURIComponent(archivo)}`;
+        
+        // Crear elemento anchor temporal para iniciar descarga
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${archivo}_${estado.replace(/\s+/g, '_')}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Mensaje de éxito
+        setTimeout(() => {
+            showMessage(`CSV descargado exitosamente`, 'success');
+        }, 500);
+    }
+
+    document.getElementById('btn-validar-sp7').addEventListener('click', function() {
+        ejecutarValidacionStream('{% url "validacion_app:validar_sp7_stream" %}', 'CONSOLIDADO_SP7');
+    });
+
+    document.getElementById('btn-validar-qe').addEventListener('click', function() {
+        ejecutarValidacion('{% url "validacion_app:validar_qe" %}', 'CONSOLIDADO_QE');
+    });
+
+    document.getElementById('btn-validar-xm').addEventListener('click', function() {
+        ejecutarValidacion('{% url "validacion_app:validar_xm" %}', 'CONSOLIDADO_XM');
+    });
+</script>
+{% endblock %}

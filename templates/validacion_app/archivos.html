@@ -1,0 +1,650 @@
+{% extends 'base.html' %}
+
+{% block title %}Gestión de Archivos - Validador OMS SDL{% endblock %}
+
+{% block extra_css %}
+<style>
+    .folders-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+        gap: 30px;
+        margin-top: 20px;
+    }
+    
+    .folder-section {
+        background: white;
+        border: 2px solid #006633;
+        border-radius: 10px;
+        padding: 20px;
+    }
+    
+    .folder-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 2px solid #e8e8e8;
+    }
+    
+    .folder-header h3 {
+        color: #006633;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 1.2em;
+    }
+    
+    .folder-header svg {
+        width: 24px;
+        height: 24px;
+        fill: none;
+        stroke: #006633;
+        stroke-width: 2.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+    
+    .upload-section {
+        background: #f8f9fa;
+        border: 2px dashed #006633;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 20px;
+        text-align: center;
+    }
+    
+    .upload-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 20px;
+        background: white;
+        border: 2px solid #006633;
+        color: #006633;
+        border-radius: 6px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .upload-label:hover {
+        background: #006633;
+        color: white;
+    }
+    
+    .upload-label svg {
+        width: 18px;
+        height: 18px;
+        fill: none;
+        stroke: #666;
+        stroke-width: 2.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        transition: stroke 0.3s ease;
+    }
+    
+    .upload-label:hover svg {
+        stroke: white;
+    }
+    
+    .upload-input {
+        display: none;
+    }
+    
+    .file-list {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    
+    .file-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px;
+        margin-bottom: 8px;
+        background: #f8f9fa;
+        border-radius: 6px;
+        transition: all 0.2s;
+    }
+    
+    .file-item:hover {
+        background: #e8f5e9;
+        transform: translateX(5px);
+    }
+    
+    .file-info {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex: 1;
+    }
+    
+    .file-icon svg {
+        width: 20px;
+        height: 20px;
+        fill: none;
+        stroke: #666;
+        stroke-width: 2.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+    
+    .file-name {
+        font-weight: 500;
+        color: #333;
+        word-break: break-all;
+    }
+    
+    .file-actions {
+        display: flex;
+        gap: 10px;
+    }
+    
+    .btn-download, .btn-delete {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        background: white;
+        border: 2px solid #006633;
+        color: #006633;
+        border-radius: 5px;
+        font-size: 0.85em;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-delete {
+        border-color: #dc3545;
+        color: #dc3545;
+    }
+    
+    .btn-download:hover {
+        background: #006633;
+        color: white;
+    }
+    
+    .btn-delete:hover {
+        background: #dc3545;
+        color: white;
+    }
+    
+    .btn-download svg, .btn-delete svg {
+        width: 16px;
+        height: 16px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+    
+    .empty-folder {
+        text-align: center;
+        padding: 40px 20px;
+        color: #999;
+        font-style: italic;
+    }
+    
+    .file-count {
+        font-size: 0.9em;
+        color: #666;
+        background: #e8f5e9;
+        padding: 4px 12px;
+        border-radius: 12px;
+    }
+    
+    .btn-delete-all {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 14px;
+        background: white;
+        border: 2px solid #dc3545;
+        color: #dc3545;
+        border-radius: 5px;
+        font-size: 0.85em;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-delete-all:hover {
+        background: #dc3545;
+        color: white;
+    }
+    
+    .btn-delete-all svg {
+        width: 16px;
+        height: 16px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+    
+    .folder-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    /* ── Modo oscuro: gestión de archivos ── */
+    [data-theme="dark"] .folder-section {
+        background: var(--bg-container);
+        border-color: var(--color-primary);
+    }
+    [data-theme="dark"] .folder-header {
+        border-bottom-color: var(--border-card);
+    }
+    [data-theme="dark"] .folder-header h3 {
+        color: var(--color-primary);
+    }
+    [data-theme="dark"] .upload-section {
+        background: var(--bg-page);
+        border-color: var(--color-primary);
+    }
+    [data-theme="dark"] .upload-label {
+        background: var(--bg-btn);
+        border-color: var(--color-primary);
+        color: var(--color-primary);
+    }
+    [data-theme="dark"] .upload-label:hover {
+        background: var(--color-primary);
+        color: #111827;
+    }
+    [data-theme="dark"] .file-item {
+        background: var(--bg-page);
+    }
+    [data-theme="dark"] .file-item:hover {
+        background: #1a3a28;
+    }
+    [data-theme="dark"] .file-name { color: var(--color-text); }
+    [data-theme="dark"] .btn-download {
+        background: var(--bg-btn);
+        border-color: var(--color-primary);
+        color: var(--color-primary);
+    }
+    [data-theme="dark"] .btn-download:hover {
+        background: var(--color-primary);
+        color: #111827;
+    }
+    [data-theme="dark"] .btn-delete-all {
+        background: var(--bg-btn);
+    }
+    [data-theme="dark"] .file-count {
+        background: #1a3a28;
+        color: var(--color-primary);
+    }
+    [data-theme="dark"] .empty-folder { color: var(--color-text-sub); }
+    [data-theme="dark"] .icon-btn svg { stroke: var(--color-text-sub); }
+    [data-theme="dark"] .icon-btn:hover svg { stroke: #111827; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="nav-buttons">
+    <a href="{% url 'validacion_app:index' %}" class="btn btn-info">← Volver al Inicio</a>
+</div>
+
+<h2 style="color: #006633; margin-bottom: 20px; text-align: center;">Gestión de Archivos</h2>
+<p style="text-align: center; color: #666666; margin-bottom: 30px;">
+    Administra archivos en las carpetas Descargados QE, Descargados XM, Reporte Mensual y Resultados
+</p>
+
+<div class="folders-container">
+    <!-- Descargados QE -->
+    <div class="folder-section">
+        <div class="folder-header">
+            <h3>
+                <svg viewBox="0 0 24 24">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" stroke="#006633" stroke-width="2.5"/>
+                </svg>
+                Descargados QE
+            </h3>
+            <div class="folder-actions">
+                <button class="btn-delete-all" id="btn-delete-all-qe" onclick="eliminarTodos('qe')" style="display:none;">
+                    <svg viewBox="0 0 24 24" fill="none">
+                        <polyline points="3 6 5 6 21 6" stroke="currentColor" stroke-width="2.5"/>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="currentColor" stroke-width="2.5"/>
+                    </svg>
+                    Eliminar Todos
+                </button>
+                <span class="file-count" id="count-qe">0 archivos</span>
+            </div>
+        </div>
+        
+        <div class="upload-section">
+            <label for="upload-qe" class="upload-label">
+                <svg viewBox="0 0 24 24" fill="none">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="#666" stroke-width="2.5"/>
+                    <polyline points="17 8 12 3 7 8" stroke="#666" stroke-width="2.5"/>
+                    <line x1="12" y1="3" x2="12" y2="15" stroke="#666" stroke-width="2.5"/>
+                </svg>
+                Subir Archivo
+            </label>
+            <input type="file" id="upload-qe" class="upload-input" multiple onchange="subirArchivos('qe', this.files)">
+            <p style="margin-top: 10px; font-size: 0.85em; color: #666;">Arrastra archivos o haz clic para seleccionar</p>
+        </div>
+        
+        <div class="file-list" id="files-qe">
+            <div class="loading"><div class="spinner"></div></div>
+        </div>
+    </div>
+    
+    <!-- Descargados XM -->
+    <div class="folder-section">
+        <div class="folder-header">
+            <h3>
+                <svg viewBox="0 0 24 24">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" stroke="#006633" stroke-width="2.5"/>
+                </svg>
+                Descargados XM
+            </h3>
+            <div class="folder-actions">
+                <button class="btn-delete-all" id="btn-delete-all-xm" onclick="eliminarTodos('xm')" style="display:none;">
+                    <svg viewBox="0 0 24 24" fill="none">
+                        <polyline points="3 6 5 6 21 6" stroke="currentColor" stroke-width="2.5"/>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="currentColor" stroke-width="2.5"/>
+                    </svg>
+                    Eliminar Todos
+                </button>
+                <span class="file-count" id="count-xm">0 archivos</span>
+            </div>
+        </div>
+        
+        <div class="upload-section">
+            <label for="upload-xm" class="upload-label">
+                <svg viewBox="0 0 24 24" fill="none">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="#666" stroke-width="2.5"/>
+                    <polyline points="17 8 12 3 7 8" stroke="#666" stroke-width="2.5"/>
+                    <line x1="12" y1="3" x2="12" y2="15" stroke="#666" stroke-width="2.5"/>
+                </svg>
+                Subir Archivo
+            </label>
+            <input type="file" id="upload-xm" class="upload-input" multiple onchange="subirArchivos('xm', this.files)">
+            <p style="margin-top: 10px; font-size: 0.85em; color: #666;">Arrastra archivos o haz clic para seleccionar</p>
+        </div>
+        
+        <div class="file-list" id="files-xm">
+            <div class="loading"><div class="spinner"></div></div>
+        </div>
+    </div>
+
+    <!-- Reporte Mensual -->
+    <div class="folder-section">
+        <div class="folder-header">
+            <h3>
+                <svg viewBox="0 0 24 24">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" stroke="#006633" stroke-width="2.5"/>
+                </svg>
+                Reporte Mensual
+            </h3>
+            <div class="folder-actions">
+                <button class="btn-delete-all" id="btn-delete-all-rm" onclick="eliminarTodos('rm')" style="display:none;">
+                    <svg viewBox="0 0 24 24" fill="none">
+                        <polyline points="3 6 5 6 21 6" stroke="currentColor" stroke-width="2.5"/>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="currentColor" stroke-width="2.5"/>
+                    </svg>
+                    Eliminar Todos
+                </button>
+                <span class="file-count" id="count-rm">0 archivos</span>
+            </div>
+        </div>
+
+        <div class="upload-section">
+            <label for="upload-rm" class="upload-label">
+                <svg viewBox="0 0 24 24" fill="none">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="#666" stroke-width="2.5"/>
+                    <polyline points="17 8 12 3 7 8" stroke="#666" stroke-width="2.5"/>
+                    <line x1="12" y1="3" x2="12" y2="15" stroke="#666" stroke-width="2.5"/>
+                </svg>
+                Subir Archivo
+            </label>
+            <input type="file" id="upload-rm" class="upload-input" multiple onchange="subirArchivos('rm', this.files)">
+            <p style="margin-top: 10px; font-size: 0.85em; color: #666;">Arrastra archivos o haz clic para seleccionar</p>
+        </div>
+
+        <div class="file-list" id="files-rm">
+            <div class="loading"><div class="spinner"></div></div>
+        </div>
+    </div>
+
+    <!-- Resultados -->
+    <div class="folder-section">
+        <div class="folder-header">
+            <h3>
+                <svg viewBox="0 0 24 24">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" stroke="#006633" stroke-width="2.5"/>
+                </svg>
+                Resultados
+            </h3>
+            <div class="folder-actions">
+                <button class="btn-delete-all" id="btn-delete-all-resultados" onclick="eliminarTodos('resultados')" style="display:none;">
+                    <svg viewBox="0 0 24 24" fill="none">
+                        <polyline points="3 6 5 6 21 6" stroke="currentColor" stroke-width="2.5"/>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="currentColor" stroke-width="2.5"/>
+                    </svg>
+                    Eliminar Todos
+                </button>
+                <span class="file-count" id="count-resultados">0 archivos</span>
+            </div>
+        </div>
+
+        <div class="upload-section">
+            <label for="upload-resultados" class="upload-label">
+                <svg viewBox="0 0 24 24" fill="none">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="#666" stroke-width="2.5"/>
+                    <polyline points="17 8 12 3 7 8" stroke="#666" stroke-width="2.5"/>
+                    <line x1="12" y1="3" x2="12" y2="15" stroke="#666" stroke-width="2.5"/>
+                </svg>
+                Subir Archivo
+            </label>
+            <input type="file" id="upload-resultados" class="upload-input" multiple onchange="subirArchivos('resultados', this.files)">
+            <p style="margin-top: 10px; font-size: 0.85em; color: #666;">Arrastra archivos o haz clic para seleccionar</p>
+        </div>
+
+        <div class="file-list" id="files-resultados">
+            <div class="loading"><div class="spinner"></div></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Cargar archivos al iniciar
+    document.addEventListener('DOMContentLoaded', function() {
+        cargarArchivos('qe');
+        cargarArchivos('xm');
+        cargarArchivos('rm');
+        cargarArchivos('resultados');
+    });
+    
+    function cargarArchivos(carpeta) {
+        const url = '{% url "validacion_app:listar_archivos" %}' + `?carpeta=${carpeta}`;
+        const container = document.getElementById(`files-${carpeta}`);
+        
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    mostrarArchivos(carpeta, data.archivos);
+                    actualizarContador(carpeta, data.archivos.length);
+                } else {
+                    container.innerHTML = `<div class="empty-folder">Error: ${data.message}</div>`;
+                }
+            })
+            .catch(error => {
+                container.innerHTML = `<div class="empty-folder">Error al cargar archivos</div>`;
+            });
+    }
+    
+    function mostrarArchivos(carpeta, archivos) {
+        const container = document.getElementById(`files-${carpeta}`);
+        
+        if (archivos.length === 0) {
+            container.innerHTML = '<div class="empty-folder">📂 Carpeta vacía</div>';
+            return;
+        }
+        
+        let html = '';
+        archivos.forEach(archivo => {
+            html += `
+                <div class="file-item">
+                    <div class="file-info">
+                        <div class="file-icon">
+                            <svg viewBox="0 0 24 24" fill="none">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="#666" stroke-width="2.5"/>
+                                <polyline points="14 2 14 8 20 8" stroke="#666" stroke-width="2.5"/>
+                            </svg>
+                        </div>
+                        <span class="file-name">${archivo}</span>
+                    </div>
+                    <div class="file-actions">
+                        <button class="btn-download" onclick="descargarArchivo('${carpeta}', '${archivo}')">
+                            <svg viewBox="0 0 24 24" fill="none">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="currentColor" stroke-width="2.5"/>
+                                <polyline points="7 10 12 15 17 10" stroke="currentColor" stroke-width="2.5"/>
+                                <line x1="12" y1="15" x2="12" y2="3" stroke="currentColor" stroke-width="2.5"/>
+                            </svg>
+                            Descargar
+                        </button>
+                        <button class="btn-delete" onclick="eliminarArchivo('${carpeta}', '${archivo}')">
+                            <svg viewBox="0 0 24 24" fill="none">
+                                <polyline points="3 6 5 6 21 6" stroke="currentColor" stroke-width="2.5"/>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="currentColor" stroke-width="2.5"/>
+                            </svg>
+                            Eliminar
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+        
+        container.innerHTML = html;
+    }
+    
+    function actualizarContador(carpeta, count) {
+        document.getElementById(`count-${carpeta}`).textContent = `${count} archivo${count !== 1 ? 's' : ''}`;
+        const btnDeleteAll = document.getElementById(`btn-delete-all-${carpeta}`);
+        if (btnDeleteAll) {
+            btnDeleteAll.style.display = count > 0 ? 'inline-flex' : 'none';
+        }
+    }
+    
+    function subirArchivos(carpeta, files) {
+        if (files.length === 0) return;
+        
+        showLoading();
+        
+        const formData = new FormData();
+        formData.append('carpeta', carpeta);
+        
+        for (let i = 0; i < files.length; i++) {
+            formData.append('archivos', files[i]);
+        }
+        
+        fetch('{% url "validacion_app:subir_archivo" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading();
+            if (data.success) {
+                showMessage(`${data.subidos} archivo(s) subido(s) correctamente`, 'success');
+                cargarArchivos(carpeta);
+                document.getElementById(`upload-${carpeta}`).value = '';
+            } else {
+                showMessage('Error al subir archivos: ' + data.message, 'error');
+            }
+        })
+        .catch(error => {
+            hideLoading();
+            showMessage('Error de conexión al subir archivos', 'error');
+        });
+    }
+    
+    function descargarArchivo(carpeta, archivo) {
+        const url = '{% url "validacion_app:descargar_archivo" %}' + `?carpeta=${carpeta}&archivo=${encodeURIComponent(archivo)}`;
+        window.location.href = url;
+        showMessage(`Descargando ${archivo}...`, 'info');
+    }
+    
+    function eliminarTodos(carpeta) {
+        const nombresMap = {'qe': 'Descargados QE', 'xm': 'Descargados XM', 'rm': 'Reporte Mensual', 'resultados': 'Resultados'};
+        const nombreCarpeta = nombresMap[carpeta] || carpeta;
+        
+        if (!confirm(`¿Está seguro de eliminar TODOS los archivos de "${nombreCarpeta}"?\n\nEsta acción no se puede deshacer.`)) {
+            return;
+        }
+        
+        showLoading();
+        
+        fetch('{% url "validacion_app:eliminar_todos_archivos" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ carpeta: carpeta })
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading();
+            if (data.success) {
+                showMessage(data.message, 'success');
+                cargarArchivos(carpeta);
+            } else {
+                showMessage('Error al eliminar: ' + data.message, 'error');
+            }
+        })
+        .catch(error => {
+            hideLoading();
+            showMessage('Error de conexión al eliminar archivos', 'error');
+        });
+    }
+    
+    function eliminarArchivo(carpeta, archivo) {
+        if (!confirm(`¿Está seguro de eliminar el archivo "${archivo}"?`)) {
+            return;
+        }
+        
+        showLoading();
+        
+        fetch('{% url "validacion_app:eliminar_archivo" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                carpeta: carpeta,
+                archivo: archivo
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading();
+            if (data.success) {
+                showMessage('Archivo eliminado correctamente', 'success');
+                cargarArchivos(carpeta);
+            } else {
+                showMessage('Error al eliminar: ' + data.message, 'error');
+            }
+        })
+        .catch(error => {
+            hideLoading();
+            showMessage('Error de conexión al eliminar archivo', 'error');
+        });
+    }
+</script>
+{% endblock %}

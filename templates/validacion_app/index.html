@@ -1,0 +1,191 @@
+{% extends 'base.html' %}
+
+{% block title %}Inicio - Validador OMS SDL{% endblock %}
+
+{% block extra_css %}
+<style>
+    .icon-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        justify-content: center;
+    }
+    
+    .icon-btn svg {
+        width: 18px;
+        height: 18px;
+        fill: none;
+        stroke: #666;
+        stroke-width: 2.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        transition: stroke 0.3s ease;
+    }
+    
+    .icon-btn:hover svg {
+        stroke: white;
+    }
+    [data-theme="dark"] .icon-btn svg { stroke: var(--color-text-sub); }
+    [data-theme="dark"] .icon-btn:hover svg { stroke: #111827; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="text-align: center; padding: 40px 0;">
+    <h2 style="color: #006633; margin-bottom: 30px;">Bienvenido al Sistema de Validación</h2>
+    <p style="font-size: 1.1em; color: #666666; margin-bottom: 40px;">
+        Seleccione una opción para comenzar
+    </p>
+
+    <div class="button-grid">
+        <div style="text-align: center;">
+            <a href="{% url 'validacion_app:test_conexion' %}" class="btn btn-info icon-btn" id="test-conexion-btn">
+                <svg viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke="#666" stroke-width="2.5"/>
+                    <polyline points="12 6 12 12 16 14" stroke="#666" stroke-width="2.5"/>
+                </svg>
+                Probar Conexión Oracle
+            </a>
+            <p style="margin-top: 10px; color: #666;">Verifica la conexión a la base de datos</p>
+        </div>
+
+        <div style="text-align: center;">
+            <a href="{% url 'validacion_app:procesos' %}" class="btn btn-primary icon-btn">
+                <svg viewBox="0 0 24 24" fill="none">
+                    <polygon points="5 3 19 12 5 21 5 3" stroke="#666" stroke-width="2.5"/>
+                </svg>
+                Ejecutar Extracción
+            </a>
+            <p style="margin-top: 10px; color: #666;">Crear consolidados QE, SP7 y XM</p>
+        </div>
+
+        <div style="text-align: center;">
+            <a href="{% url 'validacion_app:validacion' %}" class="btn btn-success icon-btn">
+                <svg viewBox="0 0 24 24" fill="none">
+                    <polyline points="20 6 9 17 4 12" stroke="#666" stroke-width="2.5"/>
+                </svg>
+                Validación de Datos
+            </a>
+            <p style="margin-top: 10px; color: #666;">Validar consolidados existentes</p>
+        </div>
+
+        <div style="text-align: center;">
+            <a href="{% url 'validacion_app:crear_qa_tfddregistro' %}" class="btn btn-warning icon-btn" id="qa-btn">
+                <svg viewBox="0 0 24 24" fill="none">
+                    <rect x="3" y="3" width="18" height="18" rx="2" stroke="#666" stroke-width="2.5"/>
+                    <line x1="9" y1="9" x2="15" y2="9" stroke="#666" stroke-width="2.5"/>
+                    <line x1="9" y1="15" x2="15" y2="15" stroke="#666" stroke-width="2.5"/>
+                </svg>
+                Generación QA_TFDDREGISTRO
+            </a>
+            <p style="margin-top: 10px; color: #666;">Crear archivo QA_TFDDREGISTRO</p>
+        </div>
+        
+        <div style="text-align: center;">
+            <a href="{% url 'validacion_app:archivos' %}" class="btn btn-secondary icon-btn">
+                <svg viewBox="0 0 24 24" fill="none">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" stroke="#666" stroke-width="2.5"/>
+                </svg>
+                Gestión de Archivos
+            </a>
+            <p style="margin-top: 10px; color: #666;">Administrar archivos QE y XM</p>
+        </div>
+    </div>
+
+    <div class="loading">
+        <div class="spinner"></div>
+        <p style="margin-top: 15px; color: #006633; font-weight: bold;">Procesando...</p>
+    </div>
+
+    <div id="console-output" class="console" style="display: none;"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.getElementById('test-conexion-btn').addEventListener('click', function(e) {
+        e.preventDefault();
+        
+        const consoleOutput = document.getElementById('console-output');
+        consoleOutput.style.display = 'block';
+        consoleOutput.textContent = 'Iniciando prueba de conexión...\n';
+        
+        showLoading();
+        
+        fetch('{% url "validacion_app:test_conexion" %}', {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading();
+            
+            if (data.output) {
+                appendToConsole(data.output);
+            }
+            if (data.errors) {
+                appendToConsole('ERRORES:\n' + data.errors);
+            }
+            
+            if (data.success) {
+                showMessage('Conexión exitosa', 'success');
+            } else {
+                showMessage('Error en la conexión', 'error');
+            }
+        })
+        .catch(error => {
+            hideLoading();
+            appendToConsole('Error: ' + error);
+            showMessage('Error al probar conexión', 'error');
+        });
+    });
+
+    document.getElementById('qa-btn').addEventListener('click', function(e) {
+        e.preventDefault();
+        
+        if (!confirm('¿Desea crear el archivo QA_TFDDREGISTRO?')) {
+            return;
+        }
+        
+        const consoleOutput = document.getElementById('console-output');
+        consoleOutput.style.display = 'block';
+        consoleOutput.textContent = 'Iniciando generación de QA_TFDDREGISTRO...\n';
+        
+        showLoading();
+        document.querySelectorAll('.btn').forEach(b => b.disabled = true);
+
+        const evtSource = new EventSource('{% url "validacion_app:crear_qa_tfddregistro_stream" %}');
+
+        evtSource.onmessage = function(event) {
+            if (event.data) {
+                appendToConsole(event.data + '\n');
+            }
+        };
+
+        evtSource.addEventListener('done', function(event) {
+            evtSource.close();
+            hideLoading();
+            document.querySelectorAll('.btn').forEach(b => b.disabled = false);
+            const isSuccess = event.data === 'success';
+            if (isSuccess) {
+                showMessage('QA_TFDDREGISTRO creado correctamente', 'success');
+                appendToConsole('\n[OK] QA_TFDDREGISTRO completado exitosamente\n');
+            } else {
+                const msg = event.data.replace('error:', '');
+                showMessage('Error al crear QA_TFDDREGISTRO: ' + msg, 'error');
+                appendToConsole('\n[ERROR] Error al crear QA_TFDDREGISTRO\n');
+            }
+        });
+
+        evtSource.onerror = function() {
+            evtSource.close();
+            hideLoading();
+            document.querySelectorAll('.btn').forEach(b => b.disabled = false);
+            appendToConsole('Error de conexión con el servidor\n');
+            showMessage('Error al crear QA_TFDDREGISTRO', 'error');
+        };
+    });
+</script>
+{% endblock %}

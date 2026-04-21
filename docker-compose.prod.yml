@@ -1,0 +1,17 @@
+services:
+  app:
+    image: validacionajustemensual-app:latest
+    container_name: validador-xm-qe
+    env_file:
+      - .env
+    ports:
+      - "8022:8022" # solo si no usas host network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1024M
+        reservations:
+          cpus: "0.5"
+          memory: 256M
