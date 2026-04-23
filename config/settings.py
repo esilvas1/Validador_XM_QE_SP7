@@ -4,11 +4,13 @@ Django settings for Validacion Ajuste Mensual project.
 
 from pathlib import Path
 import os
+import logging
 from dotenv import load_dotenv
 from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+logger = logging.getLogger(__name__)
 
 # Cargar variables desde .env
 load_dotenv(BASE_DIR / '.env')
@@ -106,13 +108,35 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Custom settings for data paths
 data_dir_env = os.environ.get('DATA_DIR', '').strip()
+
+# En Linux permitir override con ruta POSIX montada para despliegue en contenedor.
+if os.name != 'nt':
+    data_dir_linux = os.environ.get('DATA_DIR_LINUX', '').strip()
+    if data_dir_linux:
+        data_dir_env = data_dir_linux
+
 if not data_dir_env:
-    raise ImproperlyConfigured("La variable DATA_DIR es obligatoria y debe apuntar al DFS.")
+    raise ImproperlyConfigured(
+        "La variable DATA_DIR es obligatoria y debe apuntar al DFS "
+        "(en Linux puede usar DATA_DIR_LINUX como override)."
+    )
 
 DATA_DIR = Path(data_dir_env)
 
-# Forzar uso exclusivo de DFS; si no está accesible, fallar en arranque.
+# Mantener modo DFS-only, pero no impedir el arranque del proceso web.
+# Los procesos que usen DFS validan accesibilidad en tiempo de ejecución.
+if os.name != 'nt' and data_dir_env.startswith('\\\\'):
+    logger.warning(
+        "DATA_DIR parece una ruta UNC de Windows en Linux: %s. "
+        "Monte el DFS y use una ruta POSIX en DATA_DIR (ej: /mnt/dfs/... ).",
+        data_dir_env,
+    )
+
 if not DATA_DIR.exists() or not DATA_DIR.is_dir():
-    raise ImproperlyConfigured(f"DATA_DIR no existe o no es accesible: {DATA_DIR}")
+    logger.warning(
+        "DATA_DIR no existe o no es accesible en arranque: %s. "
+        "La app iniciara, pero los procesos de negocio fallaran hasta que el DFS sea accesible.",
+        DATA_DIR,
+    )
 
 OUTPUT_DIR = BASE_DIR / 'output'

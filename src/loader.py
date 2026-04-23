@@ -10,8 +10,24 @@ load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 def get_data_dir():
     env_data_dir = os.environ.get("DATA_DIR", "").strip()
+
+    if os.name != "nt":
+        env_data_dir_linux = os.environ.get("DATA_DIR_LINUX", "").strip()
+        if env_data_dir_linux:
+            env_data_dir = env_data_dir_linux
+
     if not env_data_dir:
-        raise EnvironmentError("DATA_DIR no configurado. Debe apuntar al DFS.")
+        raise EnvironmentError(
+            "DATA_DIR no configurado. Debe apuntar al DFS "
+            "(en Linux puede usar DATA_DIR_LINUX como override)."
+        )
+
+    if os.name != "nt" and env_data_dir.startswith("\\\\"):
+        raise FileNotFoundError(
+            "DATA_DIR apunta a una ruta UNC de Windows en un entorno Linux. "
+            "Monte el DFS en el servidor y configure DATA_DIR con ruta POSIX "
+            "(ejemplo: /mnt/dfs/S0022/data)."
+        )
 
     data_dir = os.path.abspath(env_data_dir)
     if not os.path.isdir(data_dir):

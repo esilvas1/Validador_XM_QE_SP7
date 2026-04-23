@@ -62,18 +62,24 @@
             background: var(--bg-page);
             color: var(--color-text);
             min-height: 100vh;
-            padding: 0 20px 20px;
+            padding: 0 0 20px;
+            display: flex;
+            flex-direction: column;
             transition: background 0.3s, color 0.3s;
         }
 
         .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: var(--bg-container);
-            border-radius: 15px;
-            box-shadow: 0 2px 15px var(--shadow-container);
+            max-width: none;
+            width: 100%;
+            margin: 0;
+            background: transparent;
+            border-radius: 0;
+            box-shadow: none;
             overflow: visible;
-            border: 1px solid var(--border-card);
+            border: none;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
             transition: background 0.3s, border-color 0.3s;
         }
 
@@ -152,6 +158,7 @@
 
         .content {
             padding: 30px;
+            flex: 1 0 auto;
         }
 
         .btn {
@@ -296,6 +303,7 @@
             text-align: center;
             font-size: 0.9em;
             border-top: 2px solid var(--color-primary);
+            margin-top: auto;
             transition: background 0.3s;
         }
 

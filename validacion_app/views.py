@@ -12,12 +12,49 @@ import io
 import traceback
 import queue
 import threading
+from pathlib import Path
 from contextlib import redirect_stdout, redirect_stderr
 
 # Agregar el directorio src al path para importar los módulos originales
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC_DIR = os.path.join(BASE_DIR, 'src')
 sys.path.insert(0, SRC_DIR)
+
+FOLDERS_MAP = {
+    'qe': 'Descargados QE',
+    'xm': 'Descargados XM',
+    'rm': 'Reporte Mensual',
+    'resultados': 'Resultados',
+}
+
+
+def _resolver_data_dir_para_dfs():
+    """Valida que DATA_DIR apunte a un DFS real accesible en el servidor actual."""
+    data_dir = Path(settings.DATA_DIR)
+    configurada = str(data_dir)
+    real = os.path.realpath(configurada)
+
+    if os.name != 'nt' and configurada.startswith('\\\\'):
+        return {
+            'data_dir': data_dir,
+            'data_dir_configurada': configurada,
+            'data_dir_real': real,
+            'accesible': False,
+            'error': (
+                "DATA_DIR usa ruta UNC de Windows en Linux. "
+                "Monte el DFS y configure DATA_DIR con ruta POSIX "
+                "(ejemplo: /mnt/dfs/S0022/data)."
+            ),
+        }
+
+    accesible = data_dir.exists() and data_dir.is_dir()
+    return {
+        'data_dir': data_dir,
+        'data_dir_configurada': configurada,
+        'data_dir_real': real,
+        'accesible': accesible,
+        'error': None if accesible else f"DATA_DIR no existe o no es accesible: {configurada}",
+    }
 
 
 def index(request):
@@ -780,28 +817,45 @@ def obtener_datos_filtrados(request):
 
 def archivos_view(request):
     """Vista para gestión de archivos"""
-    return render(request, 'validacion_app/archivos.html')
+    dfs_info = _resolver_data_dir_para_dfs()
+    data_dir = dfs_info['data_dir']
+    return render(
+        request,
+        'validacion_app/archivos.html',
+        {
+            'data_dir_configurada': dfs_info['data_dir_configurada'],
+            'data_dir_real': dfs_info['data_dir_real'],
+            'data_dir_accesible': dfs_info['accesible'],
+            'data_dir_error': dfs_info['error'],
+            'ruta_qe': str(data_dir / FOLDERS_MAP['qe']),
+            'ruta_xm': str(data_dir / FOLDERS_MAP['xm']),
+            'ruta_rm': str(data_dir / FOLDERS_MAP['rm']),
+            'ruta_resultados': str(data_dir / FOLDERS_MAP['resultados']),
+        },
+    )
 
 
 def listar_archivos(request):
     """Lista archivos de una carpeta específica"""
-    from pathlib import Path
-    import os
-    
+
     carpeta = request.GET.get('carpeta', '')
-    
-    # Mapear carpeta a nombre de directorio
-    carpetas_map = {
-        'qe': 'Descargados QE',
-        'xm': 'Descargados XM',
-        'rm': 'Reporte Mensual',
-        'resultados': 'Resultados'
-    }
-    
-    if carpeta not in carpetas_map:
+
+    if carpeta not in FOLDERS_MAP:
         return JsonResponse({'success': False, 'message': 'Carpeta no válida'}, status=400)
-    
-    carpeta_path = Path(settings.DATA_DIR) / carpetas_map[carpeta]
+
+    dfs_info = _resolver_data_dir_para_dfs()
+    if dfs_info['error']:
+        return JsonResponse(
+            {
+                'success': False,
+                'message': dfs_info['error'],
+                'data_dir': dfs_info['data_dir_configurada'],
+                'data_dir_real': dfs_info['data_dir_real'],
+            },
+            status=503,
+        )
+
+    carpeta_path = dfs_info['data_dir'] / FOLDERS_MAP[carpeta]
     
     # Crear carpeta si no existe
     if not carpeta_path.exists():
@@ -819,7 +873,10 @@ def listar_archivos(request):
         return JsonResponse({
             'success': True,
             'archivos': archivos,
-            'total': len(archivos)
+            'total': len(archivos),
+            'ruta_carpeta': str(carpeta_path),
+            'data_dir': dfs_info['data_dir_configurada'],
+            'data_dir_real': dfs_info['data_dir_real'],
         })
         
     except Exception as e:
@@ -828,47 +885,53 @@ def listar_archivos(request):
 
 def subir_archivo(request):
     """Sube uno o más archivos a una carpeta específica"""
-    from pathlib import Path
-    import os
-    
+
     if request.method != 'POST':
         return JsonResponse({'success': False, 'message': 'Método no permitido'}, status=405)
-    
+
     carpeta = request.POST.get('carpeta', '')
     archivos = request.FILES.getlist('archivos')
-    
-    carpetas_map = {
-        'qe': 'Descargados QE',
-        'xm': 'Descargados XM',
-        'rm': 'Reporte Mensual',
-        'resultados': 'Resultados'
-    }
-    
-    if carpeta not in carpetas_map:
+
+    if carpeta not in FOLDERS_MAP:
         return JsonResponse({'success': False, 'message': 'Carpeta no válida'}, status=400)
-    
+
     if not archivos:
         return JsonResponse({'success': False, 'message': 'No se recibieron archivos'}, status=400)
-    
-    carpeta_path = Path(settings.DATA_DIR) / carpetas_map[carpeta]
+
+    dfs_info = _resolver_data_dir_para_dfs()
+    if dfs_info['error']:
+        return JsonResponse(
+            {
+                'success': False,
+                'message': dfs_info['error'],
+                'data_dir': dfs_info['data_dir_configurada'],
+                'data_dir_real': dfs_info['data_dir_real'],
+            },
+            status=503,
+        )
+
+    carpeta_path = dfs_info['data_dir'] / FOLDERS_MAP[carpeta]
     carpeta_path.mkdir(parents=True, exist_ok=True)
-    
+
     try:
         subidos = 0
         for archivo in archivos:
             file_path = carpeta_path / archivo.name
-            
+
             # Guardar archivo
             with open(file_path, 'wb+') as destination:
                 for chunk in archivo.chunks():
                     destination.write(chunk)
-            
+
             subidos += 1
-        
+
         return JsonResponse({
             'success': True,
             'message': f'{subidos} archivo(s) subido(s)',
-            'subidos': subidos
+            'subidos': subidos,
+            'ruta_carpeta': str(carpeta_path),
+            'data_dir': dfs_info['data_dir_configurada'],
+            'data_dir_real': dfs_info['data_dir_real'],
         })
         
     except Exception as e:
@@ -878,23 +941,18 @@ def subir_archivo(request):
 def descargar_archivo(request):
     """Descarga un archivo de una carpeta específica"""
     from django.http import FileResponse, Http404
-    from pathlib import Path
-    import os
-    
+
     carpeta = request.GET.get('carpeta', '')
     archivo = request.GET.get('archivo', '')
-    
-    carpetas_map = {
-        'qe': 'Descargados QE',
-        'xm': 'Descargados XM',
-        'rm': 'Reporte Mensual',
-        'resultados': 'Resultados'
-    }
-    
-    if carpeta not in carpetas_map or not archivo:
+
+    if carpeta not in FOLDERS_MAP or not archivo:
         raise Http404('Archivo no encontrado')
-    
-    file_path = Path(settings.DATA_DIR) / carpetas_map[carpeta] / archivo
+
+    dfs_info = _resolver_data_dir_para_dfs()
+    if dfs_info['error']:
+        raise Http404(dfs_info['error'])
+
+    file_path = dfs_info['data_dir'] / FOLDERS_MAP[carpeta] / archivo
     
     if not file_path.exists() or not file_path.is_file():
         raise Http404('Archivo no encontrado')
@@ -910,13 +968,11 @@ def descargar_archivo(request):
 
 def eliminar_archivo(request):
     """Elimina un archivo de una carpeta específica"""
-    from pathlib import Path
-    import os
     import json
-    
+
     if request.method != 'POST':
         return JsonResponse({'success': False, 'message': 'Método no permitido'}, status=405)
-    
+
     try:
         data = json.loads(request.body)
         carpeta = data.get('carpeta', '')
@@ -924,17 +980,22 @@ def eliminar_archivo(request):
     except:
         return JsonResponse({'success': False, 'message': 'Datos inválidos'}, status=400)
     
-    carpetas_map = {
-        'qe': 'Descargados QE',
-        'xm': 'Descargados XM',
-        'rm': 'Reporte Mensual',
-        'resultados': 'Resultados'
-    }
-    
-    if carpeta not in carpetas_map or not archivo:
+    if carpeta not in FOLDERS_MAP or not archivo:
         return JsonResponse({'success': False, 'message': 'Parámetros inválidos'}, status=400)
-    
-    file_path = Path(settings.DATA_DIR) / carpetas_map[carpeta] / archivo
+
+    dfs_info = _resolver_data_dir_para_dfs()
+    if dfs_info['error']:
+        return JsonResponse(
+            {
+                'success': False,
+                'message': dfs_info['error'],
+                'data_dir': dfs_info['data_dir_configurada'],
+                'data_dir_real': dfs_info['data_dir_real'],
+            },
+            status=503,
+        )
+
+    file_path = dfs_info['data_dir'] / FOLDERS_MAP[carpeta] / archivo
     
     if not file_path.exists() or not file_path.is_file():
         return JsonResponse({'success': False, 'message': 'Archivo no encontrado'}, status=404)
@@ -952,30 +1013,33 @@ def eliminar_archivo(request):
 
 def eliminar_todos_archivos(request):
     """Elimina todos los archivos de una carpeta específica"""
-    from pathlib import Path
-    import os
     import json
-    
+
     if request.method != 'POST':
         return JsonResponse({'success': False, 'message': 'Método no permitido'}, status=405)
-    
+
     try:
         data = json.loads(request.body)
         carpeta = data.get('carpeta', '')
     except:
         return JsonResponse({'success': False, 'message': 'Datos inválidos'}, status=400)
-    
-    carpetas_map = {
-        'qe': 'Descargados QE',
-        'xm': 'Descargados XM',
-        'rm': 'Reporte Mensual',
-        'resultados': 'Resultados'
-    }
-    
-    if carpeta not in carpetas_map:
+
+    if carpeta not in FOLDERS_MAP:
         return JsonResponse({'success': False, 'message': 'Carpeta no válida'}, status=400)
-    
-    carpeta_path = Path(settings.DATA_DIR) / carpetas_map[carpeta]
+
+    dfs_info = _resolver_data_dir_para_dfs()
+    if dfs_info['error']:
+        return JsonResponse(
+            {
+                'success': False,
+                'message': dfs_info['error'],
+                'data_dir': dfs_info['data_dir_configurada'],
+                'data_dir_real': dfs_info['data_dir_real'],
+            },
+            status=503,
+        )
+
+    carpeta_path = dfs_info['data_dir'] / FOLDERS_MAP[carpeta]
     
     if not carpeta_path.exists():
         return JsonResponse({'success': False, 'message': 'Carpeta no encontrada'}, status=404)

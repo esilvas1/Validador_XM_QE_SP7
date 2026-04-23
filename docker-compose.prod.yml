@@ -4,6 +4,8 @@ services:
     container_name: validador-xm-qe
     env_file:
       - .env
+    volumes:
+      - /mnt/dfs/CISO01_CIMDESS:/mnt/dfs/CISO01_CIMDESS
     ports:
       - "8022:8022" # solo si no usas host network
     restart: unless-stopped

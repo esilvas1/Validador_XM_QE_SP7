@@ -233,6 +233,59 @@
         gap: 10px;
     }
 
+    .dfs-status {
+        background: #f1f8f4;
+        border: 2px solid #c9e8d6;
+        border-radius: 10px;
+        padding: 14px 16px;
+        margin-bottom: 20px;
+    }
+
+    .dfs-status.warning {
+        background: #fff4e5;
+        border-color: #f5c089;
+    }
+
+    .dfs-line {
+        margin-bottom: 6px;
+        color: #1f2937;
+        font-size: 0.95em;
+    }
+
+    .dfs-line:last-child {
+        margin-bottom: 0;
+    }
+
+    .dfs-path {
+        display: inline-block;
+        font-family: Consolas, "Courier New", monospace;
+        background: #ffffff;
+        border: 1px solid #d9e2dc;
+        border-radius: 6px;
+        padding: 3px 8px;
+        word-break: break-all;
+    }
+
+    .dfs-state-ok {
+        color: #006633;
+        font-weight: 700;
+    }
+
+    .dfs-state-error {
+        color: #b91c1c;
+        font-weight: 700;
+    }
+
+    .dfs-error-note {
+        margin-top: 10px;
+        padding: 10px 12px;
+        border-radius: 8px;
+        background: #fff1f2;
+        border: 1px solid #fecdd3;
+        color: #991b1b;
+        font-size: 0.92em;
+    }
+
     /* ── Modo oscuro: gestión de archivos ── */
     [data-theme="dark"] .folder-section {
         background: var(--bg-container);
@@ -283,6 +336,27 @@
     [data-theme="dark"] .empty-folder { color: var(--color-text-sub); }
     [data-theme="dark"] .icon-btn svg { stroke: var(--color-text-sub); }
     [data-theme="dark"] .icon-btn:hover svg { stroke: #111827; }
+    [data-theme="dark"] .dfs-status {
+        background: #0d2a1d;
+        border-color: #1f5a3f;
+    }
+    [data-theme="dark"] .dfs-status.warning {
+        background: #3a2815;
+        border-color: #7d5428;
+    }
+    [data-theme="dark"] .dfs-line {
+        color: var(--color-text);
+    }
+    [data-theme="dark"] .dfs-path {
+        background: #111827;
+        border-color: #374151;
+        color: var(--color-text);
+    }
+    [data-theme="dark"] .dfs-error-note {
+        background: #3f1b20;
+        border-color: #7f1d1d;
+        color: #fecaca;
+    }
 </style>
 {% endblock %}
 
@@ -295,6 +369,35 @@
 <p style="text-align: center; color: #666666; margin-bottom: 30px;">
     Administra archivos en las carpetas Descargados QE, Descargados XM, Reporte Mensual y Resultados
 </p>
+
+<div class="dfs-status {% if not data_dir_accesible %}warning{% endif %}">
+    <div class="dfs-line">
+        <strong>DATA_DIR configurada:</strong>
+        <span class="dfs-path">{{ data_dir_configurada }}</span>
+    </div>
+    <div class="dfs-line">
+        <strong>Ruta real en el servidor:</strong>
+        <span class="dfs-path">{{ data_dir_real }}</span>
+    </div>
+    <div class="dfs-line">
+        <strong>Estado de acceso:</strong>
+        {% if data_dir_accesible %}
+            <span class="dfs-state-ok">Disponible</span>
+        {% else %}
+            <span class="dfs-state-error">No accesible</span>
+        {% endif %}
+    </div>
+    <div class="dfs-line">
+        <strong>Carpetas destino:</strong>
+    </div>
+    <div class="dfs-line"><span class="dfs-path">{{ ruta_qe }}</span></div>
+    <div class="dfs-line"><span class="dfs-path">{{ ruta_xm }}</span></div>
+    <div class="dfs-line"><span class="dfs-path">{{ ruta_rm }}</span></div>
+    <div class="dfs-line"><span class="dfs-path">{{ ruta_resultados }}</span></div>
+    {% if data_dir_error %}
+    <div class="dfs-error-note">{{ data_dir_error }}</div>
+    {% endif %}
+</div>
 
 <div class="folders-container">
     <!-- Descargados QE -->
@@ -560,7 +663,7 @@
         .then(data => {
             hideLoading();
             if (data.success) {
-                showMessage(`${data.subidos} archivo(s) subido(s) correctamente`, 'success');
+                showMessage(`${data.subidos} archivo(s) subido(s) en: ${data.ruta_carpeta}`, 'success');
                 cargarArchivos(carpeta);
                 document.getElementById(`upload-${carpeta}`).value = '';
             } else {
