@@ -64,5 +64,6 @@ dist/
 *.spec
 
 # docker
-.tar.gz
-.tar
+
+*.tar
+*.tar.gz

@@ -198,18 +198,14 @@ def check_sp7_previo(request):
     import glob
     import zipfile as _zipfile
     from datetime import datetime as _dt
-    from dotenv import load_dotenv
-
-    load_dotenv(os.path.join(BASE_DIR, '.env'))
-
-    data_dir = os.environ.get('DATA_DIR', '').strip()
+    data_dir = Path(settings.DATA_DIR)
     # Buscar por prefijo base, ignorando cualquier sufijo de versión/período
     nombre_base = "Consulta_Eventos_Cens_Apertura_Cierre"
 
     if not data_dir:
         return JsonResponse({'found': False, 'message': 'DATA_DIR no configurado. Debe apuntar al DFS.'})
 
-    carpeta = os.path.join(data_dir, 'Reporte Mensual')
+    carpeta = os.path.join(str(data_dir), 'Reporte Mensual')
     if not os.path.isdir(carpeta):
         return JsonResponse({'found': False, 'message': f'No se puede acceder al DFS en: {carpeta}'})
 
