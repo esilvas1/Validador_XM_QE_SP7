@@ -43,6 +43,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'validacion_app.middleware.HerramientasLoginRequiredMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -122,6 +123,36 @@ if not data_dir_env:
     )
 
 DATA_DIR = Path(data_dir_env)
+
+# Tabla Oracle para usuarios de la pestaña Herramientas (columnas USERNAME / PASSWORD por defecto).
+# Nombre de tabla (solo nombre o ESQUEMA.TABLA). Columnas reales típicas: USERNAME, PASSWORD, ROL, ID.
+ORACLE_USUARIOS_TABLA = os.environ.get('ORACLE_USUARIOS_TABLA', 'S0022_USUARIOS').strip() or 'S0022_USUARIOS'
+ORACLE_USUARIOS_COL_USUARIO = os.environ.get('ORACLE_USUARIOS_COL_USUARIO', 'USERNAME').strip() or 'USERNAME'
+ORACLE_USUARIOS_COL_PASSWORD = os.environ.get('ORACLE_USUARIOS_COL_PASSWORD', 'PASSWORD').strip() or 'PASSWORD'
+# Esquema/propietario explícito de la tabla (opcional). Si está vacío, se puede usar ORACLE_CIM_OWNER.
+ORACLE_USUARIOS_ESQUEMA = os.environ.get('ORACLE_USUARIOS_ESQUEMA', '').strip()
+
+# Oracle CIM: instancia donde está S0022_USUARIOS. Si las cinco variables están definidas,
+# el login Herramientas usa solo esta conexión para leer usuarios (no ORACLE_HOST).
+ORACLE_CIM_HOST = os.environ.get('ORACLE_CIM_HOST', '').strip()
+ORACLE_CIM_PORT = os.environ.get('ORACLE_CIM_PORT', '').strip()
+# Acepta ORACLE_CIM_SERVICE_NAME o el alias corto ORACLE_CIM_SERVICE
+ORACLE_CIM_SERVICE_NAME = (
+    os.environ.get('ORACLE_CIM_SERVICE_NAME')
+    or os.environ.get('ORACLE_CIM_SERVICE')
+    or ''
+).strip()
+ORACLE_CIM_USER = os.environ.get('ORACLE_CIM_USER', '').strip()
+ORACLE_CIM_PASSWORD = os.environ.get('ORACLE_CIM_PASSWORD', '').strip()
+ORACLE_CIM_CONFIGURED = bool(
+    ORACLE_CIM_HOST
+    and ORACLE_CIM_PORT
+    and ORACLE_CIM_SERVICE_NAME
+    and ORACLE_CIM_USER
+    and ORACLE_CIM_PASSWORD
+)
+# Propietario/esquema de la tabla en CIM (ej. CIM.S0022_USUARIOS). Se usa si ORACLE_USUARIOS_ESQUEMA está vacío.
+ORACLE_CIM_OWNER = os.environ.get('ORACLE_CIM_OWNER', '').strip()
 
 # Mantener modo DFS-only, pero no impedir el arranque del proceso web.
 # Los procesos que usen DFS validan accesibilidad en tiempo de ejecución.

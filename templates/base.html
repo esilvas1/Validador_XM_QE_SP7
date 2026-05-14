@@ -395,8 +395,14 @@
                 <a href="{% url 'validacion_app:index' %}"
                    class="app-main-tab{% if u == 'index' or u == 'dashboard_sp7' %} is-active{% endif %}">Dashboard SP7</a>
                 <a href="{% url 'validacion_app:herramientas' %}"
-                   class="app-main-tab{% if u == 'herramientas' or u == 'procesos' or u == 'validacion' or u == 'archivos' %} is-active{% endif %}">Herramientas</a>
+                   class="app-main-tab{% if u == 'herramientas' or u == 'herramientas_login' or u == 'procesos' or u == 'validacion' or u == 'archivos' %} is-active{% endif %}">Herramientas</a>
             </nav>
+            {% if request.session.herramientas_user %}
+            <p style="text-align:center;margin:0 0 16px 0;font-size:0.95em;color:var(--color-text-sub);">
+                Sesión herramientas: <strong style="color:var(--color-text);">{{ request.session.herramientas_user }}</strong>
+                · <a href="{% url 'validacion_app:herramientas_logout' %}" style="color:var(--color-primary);font-weight:600;">Cerrar sesión</a>
+            </p>
+            {% endif %}
             {% endwith %}
             {% endif %}
             {% block content %}{% endblock %}

@@ -8,6 +8,8 @@ app_name = 'validacion_app'
 
 urlpatterns = [
     path('', views.index, name='index'),
+    path('herramientas/iniciar-sesion/', views.herramientas_login, name='herramientas_login'),
+    path('herramientas/cerrar-sesion/', views.herramientas_logout, name='herramientas_logout'),
     path('herramientas/', views.herramientas_view, name='herramientas'),
     path('procesos/', views.procesos_view, name='procesos'),
     path('procesos/crear-consolidado-qe/', views.crear_consolidado_qe, name='crear_consolidado_qe'),

@@ -6,6 +6,8 @@ from django.http import JsonResponse, StreamingHttpResponse
 from django.contrib import messages
 from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
+from django.urls import reverse
+from django.utils.http import url_has_allowed_host_and_scheme
 import sys
 import os
 import io
@@ -65,6 +67,50 @@ def index(request):
 def herramientas_view(request):
     """Menú con extracción, validación, archivos, QA, conexión Oracle, etc."""
     return render(request, 'validacion_app/index.html')
+
+
+def _herramientas_next_seguro(request, default_path: str) -> str:
+    """Evita redirección abierta: solo paths relativos del mismo sitio."""
+    cand = (request.POST.get('next') or request.GET.get('next') or '').strip()
+    if cand and url_has_allowed_host_and_scheme(
+        url=cand,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return cand
+    return default_path
+
+
+def herramientas_login(request):
+    """Inicio de sesión contra S0022_USUARIOS (contraseña bcrypt en Oracle)."""
+    from .oracle_auth import verificar_credenciales
+
+    if request.session.get('herramientas_user'):
+        dest = _herramientas_next_seguro(request, reverse('validacion_app:herramientas'))
+        return redirect(dest)
+
+    if request.method == 'POST':
+        usuario = request.POST.get('usuario', '').strip()
+        password = request.POST.get('password', '')
+        ok, err = verificar_credenciales(usuario, password)
+        if ok:
+            request.session['herramientas_user'] = usuario
+            request.session.cycle_key()
+            dest = _herramientas_next_seguro(request, reverse('validacion_app:herramientas'))
+            return redirect(dest)
+        messages.error(request, err or 'No se pudo iniciar sesión.')
+
+    return render(
+        request,
+        'validacion_app/herramientas_login.html',
+        {'next': request.POST.get('next') or request.GET.get('next') or ''},
+    )
+
+
+def herramientas_logout(request):
+    request.session.pop('herramientas_user', None)
+    messages.info(request, 'Sesión de herramientas cerrada.')
+    return redirect(reverse('validacion_app:index'))
 
 
 def procesos_view(request):

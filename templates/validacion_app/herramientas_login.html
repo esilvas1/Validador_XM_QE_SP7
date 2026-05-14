@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+
+{% block title %}Iniciar sesión · Herramientas{% endblock %}
+
+{% block extra_css %}
+<style>
+    .login-herramientas {
+        max-width: 420px;
+        margin: 30px auto;
+        padding: 28px;
+        background: var(--bg-container);
+        border: 1px solid var(--border-card);
+        border-radius: 10px;
+        box-shadow: 0 2px 8px var(--shadow-container);
+    }
+    .login-herramientas h2 { color: var(--color-primary); margin-bottom: 8px; text-align: center; }
+    .login-herramientas p.sub { color: var(--color-text-sub); text-align: center; margin-bottom: 22px; font-size: 0.95em; }
+    .login-herramientas label { display: block; font-weight: 600; margin-bottom: 6px; color: var(--color-text); }
+    .login-herramientas input[type="text"],
+    .login-herramientas input[type="password"] {
+        width: 100%;
+        padding: 12px 14px;
+        margin-bottom: 16px;
+        border: 2px solid var(--border-card);
+        border-radius: 8px;
+        font-size: 1em;
+        background: var(--bg-input);
+        color: var(--color-text);
+        box-sizing: border-box;
+    }
+    .login-herramientas .btn-submit {
+        width: 100%;
+        margin: 8px 0 0 0;
+        padding: 14px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="login-herramientas">
+    {% if messages %}
+    <ul style="list-style:none;padding:0;margin:0 0 16px 0;">
+        {% for message in messages %}
+        <li class="message {{ message.tags }}" style="margin-bottom:8px;">{{ message }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+    <h2>Herramientas</h2>
+    <p class="sub">Usuario y contraseña según la tabla <strong>S0022_USUARIOS</strong> (columnas <strong>USERNAME</strong> / <strong>PASSWORD</strong>). Se acepta contraseña en texto o hash bcrypt.</p>
+    <form method="post" action="{% url 'validacion_app:herramientas_login' %}">
+        {% csrf_token %}
+        {% if next %}
+        <input type="hidden" name="next" value="{{ next }}">
+        {% endif %}
+        <label for="id_usuario">Usuario</label>
+        <input type="text" name="usuario" id="id_usuario" required autocomplete="username" autofocus>
+
+        <label for="id_password">Contraseña</label>
+        <input type="password" name="password" id="id_password" required autocomplete="current-password">
+
+        <button type="submit" class="btn btn-primary btn-submit">Iniciar sesión</button>
+    </form>
+    <p style="text-align:center;margin-top:20px;">
+        <a href="{% url 'validacion_app:index' %}" class="btn btn-info" style="min-width:auto;">← Volver al Dashboard SP7</a>
+    </p>
+</div>
+{% endblock %}
