@@ -58,7 +58,12 @@ def _resolver_data_dir_para_dfs():
 
 
 def index(request):
-    """Página principal"""
+    """Portada: dashboard del CONSOLIDADO_SP7 (antes en /dashboard-sp7/)."""
+    return render(request, 'validacion_app/dashboard.html')
+
+
+def herramientas_view(request):
+    """Menú con extracción, validación, archivos, QA, conexión Oracle, etc."""
     return render(request, 'validacion_app/index.html')
 
 
@@ -294,6 +299,7 @@ def crear_consolidado_sp7_stream(request):
     """Streaming SSE del proceso crear CONSOLIDADO_SP7 — muestra output en tiempo real"""
 
     forzar_descarga = request.GET.get('forzar_descarga', 'false').lower() == 'true'
+    solo_existente = request.GET.get('solo_existente', 'false').lower() == 'true'
 
     output_queue = queue.Queue()
 
@@ -314,7 +320,10 @@ def crear_consolidado_sp7_stream(request):
                 import importlib
                 import processor as proc_module
                 importlib.reload(proc_module)
-                proc_module.crear_CONSOLIDADO_SP7(forzar_descarga=forzar_descarga)
+                proc_module.crear_CONSOLIDADO_SP7(
+                    forzar_descarga=forzar_descarga,
+                    solo_existente=solo_existente
+                )
             output_queue.put(('done', 'success'))
         except Exception as e:
             output_queue.put(('output', f'\n{"="*60}\nERROR DETALLADO:\n{"="*60}\n{traceback.format_exc()}'))
@@ -809,6 +818,198 @@ def obtener_datos_filtrados(request):
         
     except Exception as e:
         return JsonResponse({'success': False, 'message': f'Error al procesar archivo: {str(e)}'}, status=500)
+
+
+def dashboard_sp7_view(request):
+    """Vista del Dashboard del CONSOLIDADO_SP7.csv"""
+    return render(request, 'validacion_app/dashboard.html')
+
+
+def dashboard_sp7_data(request):
+    """Devuelve los indicadores del archivo CONSOLIDADO_SP7.csv (validado o sin validar).
+
+    Detecta el estado del archivo (validado vs. sin validar) según la
+    presencia de la columna ESTADO_VALIDACION y genera distribuciones útiles
+    para el dashboard.
+    """
+    import pandas as pd
+    from datetime import datetime as _dt
+    from pathlib import Path
+
+    archivo = request.GET.get('archivo', 'CONSOLIDADO_SP7.csv')
+
+    csv_path_resultados = Path(settings.DATA_DIR) / 'Resultados' / archivo
+    csv_path_base = Path(settings.DATA_DIR) / archivo
+    csv_path = csv_path_resultados if csv_path_resultados.exists() else csv_path_base
+
+    if not csv_path.exists():
+        return JsonResponse({
+            'success': False,
+            'message': f'Archivo {archivo} no encontrado en {csv_path_resultados} ni en {csv_path_base}.',
+        }, status=404)
+
+    try:
+        _read_kw = {'low_memory': False}
+
+        def _read_header():
+            try:
+                return pd.read_csv(csv_path, nrows=0, **_read_kw)
+            except UnicodeDecodeError:
+                return pd.read_csv(csv_path, nrows=0, encoding='latin-1', **_read_kw)
+
+        header_df = _read_header()
+        header_df.columns = header_df.columns.str.strip()
+        all_cols = header_df.columns.tolist()
+
+        # Solo columnas usadas por el dashboard: menos I/O y memoria que leer el CSV completo.
+        cols_dashboard = [
+            'ESTADO_VALIDACION',
+            'Tipo Elemento',
+            'Area_Responsabilidad',
+            'Estado Evento',
+            'Borrado',
+            'CausasNoReportado',
+            'Descripcion_Codigo',
+            'Fecha_Desenergizacion',
+            'Fecha_Energizacion',
+            'DURACION_min',
+            'Clientes',
+            'Trafos Afectados',
+            'IDE_Circuito',
+        ]
+        usecols = [c for c in cols_dashboard if c in all_cols]
+        if not usecols:
+            usecols = [all_cols[0]]
+
+        try:
+            df = pd.read_csv(csv_path, usecols=usecols, **_read_kw)
+        except UnicodeDecodeError:
+            df = pd.read_csv(csv_path, usecols=usecols, encoding='latin-1', **_read_kw)
+
+        df.columns = df.columns.str.strip()
+
+        stat = csv_path.stat()
+        file_info = {
+            'ruta': str(csv_path),
+            'nombre': csv_path.name,
+            'tamano_mb': round(stat.st_size / (1024 * 1024), 2),
+            'fecha_mod': _dt.fromtimestamp(stat.st_mtime).strftime('%d/%m/%Y %H:%M'),
+            'total_registros': int(len(df)),
+            'total_columnas': int(len(all_cols)),
+            'columnas': all_cols,
+        }
+
+        validado = 'ESTADO_VALIDACION' in df.columns
+        file_info['validado'] = bool(validado)
+        file_info['estado_archivo'] = 'Validado' if validado else 'Sin validar'
+
+        def _distribucion(col, top=15):
+            if col not in df.columns:
+                return None
+            serie = df[col].fillna('(vacío)').astype(str).str.strip().replace({'': '(vacío)'})
+            vc = serie.value_counts(dropna=False)
+            total = int(vc.sum()) or 1
+            top_items = vc.head(top)
+            otros_count = int(vc.iloc[top:].sum())
+            items = [
+                {
+                    'label': str(label),
+                    'count': int(count),
+                    'percent': round(count / total * 100, 2),
+                }
+                for label, count in top_items.items()
+            ]
+            if otros_count > 0:
+                items.append({
+                    'label': f'Otros ({len(vc) - top})',
+                    'count': otros_count,
+                    'percent': round(otros_count / total * 100, 2),
+                })
+            return {
+                'columna': col,
+                'total_unicos': int(vc.shape[0]),
+                'items': items,
+            }
+
+        dist = {}
+        for col in [
+            'ESTADO_VALIDACION',
+            'Tipo Elemento',
+            'Area_Responsabilidad',
+            'Estado Evento',
+            'Borrado',
+            'CausasNoReportado',
+            'Descripcion_Codigo',
+        ]:
+            d = _distribucion(col)
+            if d is not None:
+                dist[col] = d
+
+        fechas_info = None
+        for col_fecha in ('Fecha_Desenergizacion', 'Fecha_Energizacion'):
+            if col_fecha in df.columns:
+                serie_str = df[col_fecha].astype(str).str.strip()
+                muestra = serie_str.head(50).dropna()
+                parece_iso = bool(muestra.str.match(r'^\d{4}-\d{2}-\d{2}').any())
+                fechas = pd.to_datetime(
+                    df[col_fecha],
+                    errors='coerce',
+                    dayfirst=not parece_iso,
+                )
+                fechas_validas = fechas.dropna()
+                if len(fechas_validas) > 0:
+                    if fechas_info is None:
+                        fechas_info = {}
+                    fechas_info[col_fecha] = {
+                        'min': fechas_validas.min().strftime('%d/%m/%Y %H:%M'),
+                        'max': fechas_validas.max().strftime('%d/%m/%Y %H:%M'),
+                        'validas': int(len(fechas_validas)),
+                        'nulas': int(len(fechas) - len(fechas_validas)),
+                    }
+
+        metricas_numericas = {}
+        for col_num in ('DURACION_min', 'Clientes', 'Trafos Afectados'):
+            if col_num in df.columns:
+                serie_num = pd.to_numeric(df[col_num], errors='coerce')
+                serie_validos = serie_num.dropna()
+                if len(serie_validos) > 0:
+                    metricas_numericas[col_num] = {
+                        'suma': float(round(serie_validos.sum(), 2)),
+                        'promedio': float(round(serie_validos.mean(), 2)),
+                        'min': float(round(serie_validos.min(), 2)),
+                        'max': float(round(serie_validos.max(), 2)),
+                        'validos': int(len(serie_validos)),
+                        'nulos': int(len(serie_num) - len(serie_validos)),
+                    }
+
+        top_circuitos = None
+        if 'IDE_Circuito' in df.columns:
+            vc = df['IDE_Circuito'].fillna('(vacío)').astype(str).value_counts().head(10)
+            total = int(vc.sum()) or 1
+            top_circuitos = [
+                {
+                    'label': str(label),
+                    'count': int(count),
+                    'percent': round(count / total * 100, 2),
+                }
+                for label, count in vc.items()
+            ]
+
+        return JsonResponse({
+            'success': True,
+            'file_info': file_info,
+            'distribuciones': dist,
+            'fechas': fechas_info,
+            'metricas_numericas': metricas_numericas,
+            'top_circuitos': top_circuitos,
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'Error al procesar archivo: {str(e)}',
+            'traceback': traceback.format_exc(),
+        }, status=500)
 
 
 def archivos_view(request):

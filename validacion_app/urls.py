@@ -8,6 +8,7 @@ app_name = 'validacion_app'
 
 urlpatterns = [
     path('', views.index, name='index'),
+    path('herramientas/', views.herramientas_view, name='herramientas'),
     path('procesos/', views.procesos_view, name='procesos'),
     path('procesos/crear-consolidado-qe/', views.crear_consolidado_qe, name='crear_consolidado_qe'),
     path('procesos/crear-consolidado-qe-stream/', views.crear_consolidado_qe_stream, name='crear_consolidado_qe_stream'),
@@ -23,6 +24,8 @@ urlpatterns = [
     path('validacion/validar-xm/', views.validar_xm, name='validar_xm'),
     path('validacion/descargar-csv/', views.descargar_csv_filtrado, name='descargar_csv_filtrado'),
     path('validacion/obtener-datos/', views.obtener_datos_filtrados, name='obtener_datos_filtrados'),
+    path('dashboard-sp7/', views.dashboard_sp7_view, name='dashboard_sp7'),
+    path('dashboard-sp7/datos/', views.dashboard_sp7_data, name='dashboard_sp7_data'),
     path('archivos/', views.archivos_view, name='archivos'),
     path('archivos/listar/', views.listar_archivos, name='listar_archivos'),
     path('archivos/subir/', views.subir_archivo, name='subir_archivo'),

@@ -1,0 +1,629 @@
+{% extends 'base.html' %}
+
+{% block title %}Inicio · Dashboard SP7 - Validador OMS SDL{% endblock %}
+
+{% block extra_css %}
+<style>
+    .dashboard-page {
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+    }
+
+    .ds-card {
+        background: var(--bg-container);
+        border: 1px solid var(--border-card);
+        border-radius: 10px;
+        padding: 22px;
+        box-shadow: 0 2px 8px var(--shadow-container);
+    }
+
+    .ds-card h3 {
+        color: var(--color-primary);
+        margin: 0 0 16px 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 1.1em;
+        border-bottom: 2px solid var(--border-card);
+        padding-bottom: 10px;
+    }
+
+    .ds-grid-summary {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+    }
+
+    .ds-summary-item {
+        background: var(--bg-page);
+        border-left: 4px solid var(--color-primary);
+        border-radius: 8px;
+        padding: 16px 18px;
+    }
+
+    .ds-summary-item .label {
+        font-size: 0.85em;
+        color: var(--color-text-sub);
+        margin-bottom: 6px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+    }
+
+    .ds-summary-item .value {
+        font-size: 1.5em;
+        color: var(--color-primary);
+        font-weight: 700;
+        word-break: break-word;
+    }
+
+    .ds-summary-item .sub {
+        font-size: 0.8em;
+        color: var(--color-text-sub);
+        margin-top: 4px;
+    }
+
+    .ds-summary-item.total {
+        background: linear-gradient(135deg, #006633 0%, #009933 100%);
+        color: white;
+        border-left-color: #004d26;
+    }
+
+    .ds-summary-item.total .label,
+    .ds-summary-item.total .value,
+    .ds-summary-item.total .sub { color: white; }
+
+    .ds-summary-item.warn { border-left-color: #d97706; }
+    .ds-summary-item.warn .value { color: #d97706; }
+    .ds-summary-item.ok { border-left-color: var(--color-primary); }
+    .ds-summary-item.gray { border-left-color: #6b7280; }
+    .ds-summary-item.gray .value { color: var(--color-text); }
+
+    [data-theme="dark"] .ds-summary-item.warn .value { color: #fbbf24; }
+
+    .ds-grid-charts {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+        gap: 20px;
+    }
+
+    .ds-chart-wrap {
+        position: relative;
+        height: 320px;
+    }
+
+    .ds-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.92em;
+    }
+
+    .ds-table th,
+    .ds-table td {
+        padding: 9px 12px;
+        text-align: left;
+        border-bottom: 1px solid var(--border-card);
+    }
+
+    .ds-table thead th {
+        background: var(--bg-page);
+        color: var(--color-primary);
+        font-weight: 700;
+        position: sticky;
+        top: 0;
+    }
+
+    .ds-table tbody tr:hover { background: var(--bg-page); }
+    .ds-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+    .ds-bar-wrap {
+        background: var(--border-card);
+        border-radius: 6px;
+        height: 8px;
+        overflow: hidden;
+        min-width: 60px;
+    }
+    .ds-bar {
+        height: 100%;
+        background: linear-gradient(90deg, var(--color-primary), var(--color-primary2));
+        border-radius: 6px;
+    }
+
+    .ds-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        font-size: 0.85em;
+        font-weight: 700;
+    }
+    .ds-badge.ok {
+        background: rgba(0, 102, 51, 0.12);
+        color: var(--color-primary);
+        border: 1px solid var(--color-primary);
+    }
+    .ds-badge.warn {
+        background: rgba(217, 119, 6, 0.12);
+        color: #b45309;
+        border: 1px solid #d97706;
+    }
+    [data-theme="dark"] .ds-badge.warn { color: #fbbf24; }
+
+    .ds-file-info {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 24px;
+        align-items: center;
+        color: var(--color-text-sub);
+        font-size: 0.9em;
+    }
+    .ds-file-info strong { color: var(--color-text); }
+
+    .ds-controls {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+    }
+
+    .ds-empty {
+        padding: 60px 20px;
+        text-align: center;
+        color: var(--color-text-sub);
+    }
+
+    .ds-error {
+        padding: 20px;
+        background: rgba(220, 38, 38, 0.08);
+        border: 1px solid #dc2626;
+        border-radius: 8px;
+        color: #b91c1c;
+    }
+    [data-theme="dark"] .ds-error { color: #fca5a5; }
+
+    @media (max-width: 768px) {
+        .ds-grid-charts { grid-template-columns: 1fr; }
+        .ds-chart-wrap { height: 280px; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="nav-buttons">
+    <button type="button" class="btn btn-success" id="btn-refrescar">Refrescar datos</button>
+</div>
+
+<h2 style="color: #006633; margin-bottom: 8px; text-align: center;">Dashboard CONSOLIDADO_SP7</h2>
+<p style="text-align: center; color: #666666; margin-bottom: 24px;">
+    Indicadores del archivo <strong>Resultados/CONSOLIDADO_SP7.csv</strong>.
+    Si aún no se ha ejecutado <em>Validar CONSOLIDADO_SP7</em>, se mostrará la información disponible sin la columna ESTADO_VALIDACION.
+</p>
+
+<div class="loading">
+    <div class="spinner"></div>
+    <p style="margin-top: 15px; color: #006633; font-weight: bold;">Cargando datos del dashboard...</p>
+</div>
+
+<div id="dashboard-root" class="dashboard-page" style="display:none;"></div>
+<div id="dashboard-error" style="display:none;"></div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+    const DASHBOARD_URL = '{% url "validacion_app:dashboard_sp7_data" %}';
+    const SESSION_CACHE_KEY = 'va_dashboard_sp7_v1';
+    let charts = [];
+    let dashboardPayloadCache = null;
+    let lastRenderedCacheKey = null;
+
+    function cacheKeyFromPayload(data) {
+        if (!data || !data.file_info) return null;
+        const fi = data.file_info;
+        return `${fi.nombre}|${fi.fecha_mod}|${fi.tamano_mb}`;
+    }
+
+    function loadSessionCachePayload() {
+        try {
+            const raw = sessionStorage.getItem(SESSION_CACHE_KEY);
+            if (!raw) return null;
+            const o = JSON.parse(raw);
+            if (!o || !o.data || !o.key) return null;
+            return o;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function saveSessionCache(data) {
+        try {
+            const key = cacheKeyFromPayload(data);
+            if (!key) return;
+            sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify({ key, data }));
+        } catch (e) { /* p.ej. cuota de almacenamiento */ }
+    }
+
+    function esModoOscuro() {
+        return document.documentElement.getAttribute('data-theme') === 'dark';
+    }
+
+    function paletaColores(n) {
+        const base = [
+            '#006633', '#009933', '#0ea5e9', '#f59e0b', '#dc2626',
+            '#7c3aed', '#0891b2', '#16a34a', '#d97706', '#be123c',
+            '#1d4ed8', '#65a30d', '#9333ea', '#0d9488', '#a16207',
+            '#475569',
+        ];
+        const out = [];
+        for (let i = 0; i < n; i++) out.push(base[i % base.length]);
+        return out;
+    }
+
+    function destruirCharts() {
+        charts.forEach(c => { try { c.destroy(); } catch (e) {} });
+        charts = [];
+    }
+
+    function fmt(n) {
+        if (n === null || n === undefined) return '-';
+        return n.toLocaleString('es-CO');
+    }
+
+    function fmtMb(n) {
+        if (n === null || n === undefined) return '-';
+        return `${n.toLocaleString('es-CO')} MB`;
+    }
+
+    function renderResumen(fileInfo) {
+        const badge = fileInfo.validado
+            ? '<span class="ds-badge ok">✓ Validado</span>'
+            : '<span class="ds-badge warn">⚠ Sin validar</span>';
+
+        const pendienteHint = fileInfo.validado
+            ? ''
+            : '<div class="ds-summary-item warn"><div class="label">Acción sugerida</div><div class="value" style="font-size:1em;">Ejecute <em>Validar CONSOLIDADO_SP7</em></div><div class="sub">Generará ESTADO_VALIDACION y otras columnas clave</div></div>';
+
+        return `
+            <div class="ds-card">
+                <h3>
+                    <svg viewBox="0 0 24 24" style="width:22px;height:22px;fill:none;stroke:#006633;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                    </svg>
+                    Información del archivo
+                    <span style="margin-left:auto;">${badge}</span>
+                </h3>
+                <div class="ds-file-info">
+                    <div><strong>Nombre:</strong> ${fileInfo.nombre}</div>
+                    <div><strong>Modificado:</strong> ${fileInfo.fecha_mod}</div>
+                    <div><strong>Tamaño:</strong> ${fmtMb(fileInfo.tamano_mb)}</div>
+                    <div title="${fileInfo.ruta}" style="max-width:600px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><strong>Ruta:</strong> ${fileInfo.ruta}</div>
+                </div>
+                <div class="ds-grid-summary" style="margin-top:18px;">
+                    <div class="ds-summary-item total">
+                        <div class="label">Total de registros</div>
+                        <div class="value">${fmt(fileInfo.total_registros)}</div>
+                    </div>
+                    <div class="ds-summary-item gray">
+                        <div class="label">Total de columnas</div>
+                        <div class="value">${fmt(fileInfo.total_columnas)}</div>
+                        <div class="sub">${fileInfo.validado ? 'Incluye ESTADO_VALIDACION' : 'Aún no contiene ESTADO_VALIDACION'}</div>
+                    </div>
+                    ${pendienteHint}
+                </div>
+            </div>
+        `;
+    }
+
+    function renderMetricasNumericas(metricas) {
+        if (!metricas || Object.keys(metricas).length === 0) return '';
+        const labels = {
+            'DURACION_min': { titulo: 'Duración (min)', sufijo: ' min' },
+            'Clientes': { titulo: 'Clientes', sufijo: '' },
+            'Trafos Afectados': { titulo: 'Trafos afectados', sufijo: '' },
+        };
+        let html = '';
+        for (const [col, val] of Object.entries(metricas)) {
+            const meta = labels[col] || { titulo: col, sufijo: '' };
+            html += `
+                <div class="ds-summary-item">
+                    <div class="label">${meta.titulo}</div>
+                    <div class="value">${fmt(val.suma)}${meta.sufijo}</div>
+                    <div class="sub">prom: ${fmt(val.promedio)} · min: ${fmt(val.min)} · max: ${fmt(val.max)} · válidos: ${fmt(val.validos)}${val.nulos ? ` · nulos: ${fmt(val.nulos)}` : ''}</div>
+                </div>
+            `;
+        }
+        return `
+            <div class="ds-card">
+                <h3>Métricas numéricas</h3>
+                <div class="ds-grid-summary">${html}</div>
+            </div>
+        `;
+    }
+
+    function renderFechas(fechas) {
+        if (!fechas || Object.keys(fechas).length === 0) return '';
+        let html = '';
+        for (const [col, info] of Object.entries(fechas)) {
+            const esEnergizacion = col === 'Fecha_Energizacion';
+            const principal = esEnergizacion ? (info.max || info.min) : info.min;
+            const leyenda = esEnergizacion ? 'Fecha máxima' : 'Fecha mínima';
+            html += `
+                <div class="ds-summary-item">
+                    <div class="label">${col}</div>
+                    <div class="value" style="font-size:1.1em;">${principal}</div>
+                    <div class="sub">${leyenda} · válidas: ${fmt(info.validas)}${info.nulas ? ` · nulas: ${fmt(info.nulas)}` : ''}</div>
+                </div>
+            `;
+        }
+        return `
+            <div class="ds-card">
+                <h3>Fechas</h3>
+                <div class="ds-grid-summary">${html}</div>
+            </div>
+        `;
+    }
+
+    function renderDistribucionTabla(titulo, dist) {
+        if (!dist || !dist.items || dist.items.length === 0) return '';
+        const filas = dist.items.map(item => `
+            <tr>
+                <td>${item.label}</td>
+                <td class="num">${fmt(item.count)}</td>
+                <td class="num">${item.percent}%</td>
+                <td><div class="ds-bar-wrap"><div class="ds-bar" style="width:${item.percent}%;"></div></div></td>
+            </tr>
+        `).join('');
+        return `
+            <div class="ds-card">
+                <h3>${titulo}</h3>
+                <div style="overflow:auto;max-height:380px;">
+                    <table class="ds-table">
+                        <thead>
+                            <tr>
+                                <th>${dist.columna}</th>
+                                <th class="num">Registros</th>
+                                <th class="num">%</th>
+                                <th style="width:30%;">Distribución</th>
+                            </tr>
+                        </thead>
+                        <tbody>${filas}</tbody>
+                    </table>
+                </div>
+                <div style="margin-top:8px;color:var(--color-text-sub);font-size:0.85em;">
+                    Valores únicos: ${fmt(dist.total_unicos)}
+                </div>
+            </div>
+        `;
+    }
+
+    function renderTopCircuitos(top) {
+        if (!top || top.length === 0) return '';
+        const filas = top.map(item => `
+            <tr>
+                <td>${item.label}</td>
+                <td class="num">${fmt(item.count)}</td>
+                <td class="num">${item.percent}%</td>
+                <td><div class="ds-bar-wrap"><div class="ds-bar" style="width:${item.percent}%;"></div></div></td>
+            </tr>
+        `).join('');
+        return `
+            <div class="ds-card">
+                <h3>Top 10 IDE_Circuito (más eventos)</h3>
+                <table class="ds-table">
+                    <thead>
+                        <tr>
+                            <th>IDE_Circuito</th>
+                            <th class="num">Eventos</th>
+                            <th class="num">%</th>
+                            <th style="width:30%;">Distribución</th>
+                        </tr>
+                    </thead>
+                    <tbody>${filas}</tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    function renderChartsContainer() {
+        return `
+            <div class="ds-card">
+                <h3>Gráficos de distribución</h3>
+                <div class="ds-grid-charts" id="ds-charts-grid"></div>
+            </div>
+        `;
+    }
+
+    function crearCharts(data) {
+        const grid = document.getElementById('ds-charts-grid');
+        if (!grid) return;
+        const tieneEstado = data.distribuciones && data.distribuciones.ESTADO_VALIDACION;
+        const charters = [];
+
+        if (tieneEstado) {
+            charters.push({
+                tipo: 'doughnut',
+                titulo: 'ESTADO_VALIDACION',
+                dist: data.distribuciones.ESTADO_VALIDACION,
+            });
+        }
+        if (data.distribuciones && data.distribuciones['Area_Responsabilidad']) {
+            charters.push({
+                tipo: 'bar',
+                titulo: 'Area_Responsabilidad',
+                dist: data.distribuciones['Area_Responsabilidad'],
+            });
+        }
+
+        if (charters.length === 0) {
+            grid.innerHTML = '<div class="ds-empty">No hay distribuciones disponibles para graficar.</div>';
+            return;
+        }
+
+        const textColor = esModoOscuro() ? '#e5e7eb' : '#333333';
+        const gridColor = esModoOscuro() ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+
+        charters.forEach((c, idx) => {
+            const wrap = document.createElement('div');
+            wrap.innerHTML = `
+                <div style="font-weight:700;color:var(--color-primary);margin-bottom:8px;">${c.titulo}</div>
+                <div class="ds-chart-wrap"><canvas id="ds-chart-${idx}"></canvas></div>
+            `;
+            grid.appendChild(wrap);
+
+            const labels = c.dist.items.map(i => i.label);
+            const counts = c.dist.items.map(i => i.count);
+            const colors = paletaColores(labels.length);
+
+            const ctx = wrap.querySelector('canvas').getContext('2d');
+            const config = {
+                type: c.tipo,
+                data: {
+                    labels,
+                    datasets: [{
+                        label: c.titulo,
+                        data: counts,
+                        backgroundColor: colors,
+                        borderColor: esModoOscuro() ? '#1f2937' : '#ffffff',
+                        borderWidth: 1.5,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: c.tipo === 'bar' ? 'top' : 'right',
+                            display: c.tipo !== 'bar',
+                            labels: { color: textColor }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => `${ctx.label}: ${ctx.parsed.toLocaleString('es-CO')} (${(ctx.parsed / counts.reduce((a, b) => a + b, 0) * 100).toFixed(2)}%)`
+                            }
+                        }
+                    },
+                    scales: c.tipo === 'bar' ? {
+                        x: { ticks: { color: textColor, maxRotation: 45, minRotation: 0 }, grid: { color: gridColor } },
+                        y: { ticks: { color: textColor }, grid: { color: gridColor }, beginAtZero: true }
+                    } : {}
+                }
+            };
+            charts.push(new Chart(ctx, config));
+        });
+    }
+
+    function render(data) {
+        destruirCharts();
+        const root = document.getElementById('dashboard-root');
+        const fileInfo = data.file_info;
+        const dist = data.distribuciones || {};
+
+        const partes = [];
+        partes.push(renderResumen(fileInfo));
+
+        partes.push(renderChartsContainer());
+
+        const metricasHtml = renderMetricasNumericas(data.metricas_numericas);
+        const fechasHtml = renderFechas(data.fechas);
+        if (metricasHtml || fechasHtml) {
+            partes.push(`<div class="ds-grid-charts" style="grid-template-columns:repeat(auto-fit,minmax(380px,1fr));">${metricasHtml}${fechasHtml}</div>`);
+        }
+
+        const tablas = [];
+        if (dist.ESTADO_VALIDACION) {
+            tablas.push(renderDistribucionTabla('Distribución por ESTADO_VALIDACION', dist.ESTADO_VALIDACION));
+        }
+        if (dist['Tipo Elemento']) tablas.push(renderDistribucionTabla('Distribución por Tipo Elemento', dist['Tipo Elemento']));
+        if (dist['Area_Responsabilidad']) tablas.push(renderDistribucionTabla('Distribución por Área de Responsabilidad', dist['Area_Responsabilidad']));
+        if (dist['Estado Evento']) tablas.push(renderDistribucionTabla('Distribución por Estado Evento', dist['Estado Evento']));
+        if (dist['Borrado']) tablas.push(renderDistribucionTabla('Distribución por Borrado', dist['Borrado']));
+        if (dist['CausasNoReportado']) tablas.push(renderDistribucionTabla('Distribución por CausasNoReportado', dist['CausasNoReportado']));
+        if (dist['Descripcion_Codigo']) tablas.push(renderDistribucionTabla('Top descripciones (Descripcion_Codigo)', dist['Descripcion_Codigo']));
+        if (data.top_circuitos) tablas.push(renderTopCircuitos(data.top_circuitos));
+
+        if (tablas.length) {
+            partes.push(`<div class="ds-grid-charts" style="grid-template-columns:repeat(auto-fit,minmax(420px,1fr));">${tablas.join('')}</div>`);
+        }
+
+        root.innerHTML = partes.join('');
+        root.style.display = '';
+
+        crearCharts(data);
+    }
+
+    function mostrarError(msg) {
+        const err = document.getElementById('dashboard-error');
+        err.innerHTML = `<div class="ds-error"><strong>Error:</strong> ${msg}</div>`;
+        err.style.display = '';
+    }
+
+    function cargarDashboard(options = {}) {
+        const force = options.force === true;
+        const root = document.getElementById('dashboard-root');
+        const err = document.getElementById('dashboard-error');
+        err.style.display = 'none';
+
+        let showedFromCache = false;
+        if (!force) {
+            const sc = loadSessionCachePayload();
+            if (sc && sc.data) {
+                dashboardPayloadCache = sc.data;
+                lastRenderedCacheKey = sc.key;
+                render(sc.data);
+                showedFromCache = true;
+                hideLoading();
+            }
+        }
+
+        if (force || !showedFromCache) {
+            root.style.display = 'none';
+            showLoading();
+        }
+
+        fetch(DASHBOARD_URL)
+            .then(resp => resp.json().then(data => ({ ok: resp.ok, data })))
+            .then(({ ok, data }) => {
+                hideLoading();
+                if (!ok || !data.success) {
+                    if (!showedFromCache) {
+                        mostrarError(data.message || 'No se pudo cargar el dashboard.');
+                    }
+                    return;
+                }
+                dashboardPayloadCache = data;
+                const k = cacheKeyFromPayload(data);
+                if (force || k !== lastRenderedCacheKey) {
+                    render(data);
+                    lastRenderedCacheKey = k;
+                }
+                saveSessionCache(data);
+            })
+            .catch(e => {
+                hideLoading();
+                if (!showedFromCache) {
+                    mostrarError('Error de red: ' + e);
+                }
+            });
+    }
+
+    document.getElementById('btn-refrescar').addEventListener('click', () => cargarDashboard({ force: true }));
+
+    const _toggle = document.getElementById('theme-switch');
+    if (_toggle) {
+        _toggle.addEventListener('change', () => {
+            const root = document.getElementById('dashboard-root');
+            if (dashboardPayloadCache && root.style.display !== 'none') {
+                render(dashboardPayloadCache);
+            }
+        });
+    }
+
+    cargarDashboard();
+</script>
+{% endblock %}

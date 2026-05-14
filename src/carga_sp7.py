@@ -182,7 +182,7 @@ def _leer_csv_o_zip_en_ruta(base_dir, nombre_base_busqueda):
     return None
 
 
-def create_dataframe(forzar_descarga=False):
+def create_dataframe(forzar_descarga=False, solo_existente=False):
     """Descarga datos día a día para el mes completo con reintentos y guardado incremental."""
     fecha_desde_env = os.environ.get('API_FECHA_DESDE')
 
@@ -212,9 +212,11 @@ def create_dataframe(forzar_descarga=False):
     # REUTILIZAR DESCARGA PREVIA:
     # Solo se usa DATA_DIR/Reporte Mensual (DFS).
     # ---------------------------------------------------------------
-    data_dir = os.environ.get('DATA_DIR', '').strip()
-    if not data_dir:
-        print("❌ Error: DATA_DIR no configurado. Debe apuntar al DFS.")
+    from loader import get_data_dir
+    try:
+        data_dir = get_data_dir()
+    except Exception as e:
+        print(f"❌ Error de DATA_DIR: {e}")
         return None
 
     carpeta_rm = os.path.join(os.path.abspath(data_dir), 'Reporte Mensual')
@@ -235,6 +237,10 @@ def create_dataframe(forzar_descarga=False):
         df_existente = _leer_csv_o_zip_en_ruta(carpeta_rm, nombre_base_busqueda)
         if df_existente is not None and not df_existente.empty:
             return df_existente
+
+        if solo_existente:
+            print("❌ Se solicitó usar archivo existente y no se encontró uno utilizable. No se llamará la API SP7.")
+            return None
 
         print("   ℹ️  No se encontró una descarga previa utilizable. Iniciando descarga desde API SP7...")
     else:

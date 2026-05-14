@@ -149,7 +149,7 @@ def crear_CONSOLIDADO_QE():
 
     #show(CONSOLIDADO_QE)
 
-def crear_CONSOLIDADO_SP7(forzar_descarga=False):
+def crear_CONSOLIDADO_SP7(forzar_descarga=False, solo_existente=False):
 
     print("");#salto de linea
 
@@ -162,9 +162,16 @@ def crear_CONSOLIDADO_SP7(forzar_descarga=False):
     print("crear el dataframe REPORTE_SP7")
     print("Paso 1: Descargando datos desde API SP7 (carga_sp7)...")
     from carga_sp7 import create_dataframe
-    REPORTE_SP7 = create_dataframe(forzar_descarga=forzar_descarga)
+    REPORTE_SP7 = create_dataframe(
+        forzar_descarga=forzar_descarga,
+        solo_existente=solo_existente
+    )
 
     if REPORTE_SP7 is None or REPORTE_SP7.empty:
+        if solo_existente:
+            raise Exception(
+                "Se seleccionó usar archivo existente, pero no se encontró un archivo SP7 utilizable en DATA_DIR/Reporte Mensual."
+            )
         raise Exception("No se pudo descargar datos de la API SP7. Verifique la conexión y las variables en .env")
 
     print("Descarga SP7 finalizada, continuando con el procesamiento...")

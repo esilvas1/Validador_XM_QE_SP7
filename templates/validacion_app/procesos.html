@@ -56,10 +56,6 @@
 {% endblock %}
 
 {% block content %}
-<div class="nav-buttons">
-    <a href="{% url 'validacion_app:index' %}" class="btn btn-info">← Volver al Inicio</a>
-</div>
-
 <h2 style="color: #006633; margin-bottom: 20px; text-align: center;">Proceso de Extracción de Datos</h2>
 <p style="text-align: center; color: #666666; margin-bottom: 30px;">
     Este proceso creará los archivos consolidados QE, SP7 y XM
@@ -244,7 +240,7 @@
     function iniciarSP7(usarExistente) {
         document.getElementById('modal-sp7').style.display = 'none';
         const url = '{% url "validacion_app:crear_consolidado_sp7_stream" %}'
-                    + (usarExistente ? '' : '?forzar_descarga=true');
+                    + (usarExistente ? '?solo_existente=true' : '?forzar_descarga=true');
         ejecutarProcesoStream(url, 'CONSOLIDADO_SP7');
     }
 </script>

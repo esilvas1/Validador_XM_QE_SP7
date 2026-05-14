@@ -312,6 +312,41 @@
             margin: 20px 0;
         }
 
+        /* Pestañas internas (misma ventana del navegador) */
+        .app-main-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0;
+            margin: 0 0 22px 0;
+            padding: 0;
+            border-bottom: 2px solid var(--border-card);
+            background: var(--bg-container);
+            border-radius: 10px 10px 0 0;
+            box-shadow: 0 1px 4px var(--shadow-container);
+        }
+        .app-main-tab {
+            flex: 1 1 auto;
+            min-width: 140px;
+            text-align: center;
+            padding: 14px 18px;
+            font-weight: 700;
+            font-size: 1em;
+            color: var(--color-text-sub);
+            text-decoration: none;
+            border-bottom: 3px solid transparent;
+            margin-bottom: -2px;
+            transition: color 0.2s, border-color 0.2s, background 0.2s;
+        }
+        .app-main-tab:hover {
+            color: var(--color-primary);
+            background: var(--bg-page);
+        }
+        .app-main-tab.is-active {
+            color: var(--color-primary);
+            border-bottom-color: var(--color-primary);
+            background: var(--bg-page);
+        }
+
         /* ── Overrides globales modo oscuro (inline style="color:...") ── */
         [data-theme="dark"] .content h2,
         [data-theme="dark"] .content h3 {
@@ -354,6 +389,16 @@
         </header>
 
         <div class="content">
+            {% if request.resolver_match %}
+            {% with u=request.resolver_match.url_name %}
+            <nav class="app-main-tabs" aria-label="Secciones de la aplicación">
+                <a href="{% url 'validacion_app:index' %}"
+                   class="app-main-tab{% if u == 'index' or u == 'dashboard_sp7' %} is-active{% endif %}">Dashboard SP7</a>
+                <a href="{% url 'validacion_app:herramientas' %}"
+                   class="app-main-tab{% if u == 'herramientas' or u == 'procesos' or u == 'validacion' or u == 'archivos' %} is-active{% endif %}">Herramientas</a>
+            </nav>
+            {% endwith %}
+            {% endif %}
             {% block content %}{% endblock %}
         </div>
 
