@@ -10,6 +10,48 @@ from pandas import to_datetime
 # import sweetviz as sv  # No necesario en entorno web
 import numpy
 
+# Valores de origen que deben persistir como NULL en Oracle (FDD_FFINAL, etc.)
+_VALORES_FECHA_VACIA = frozenset({
+    '', '0', '0.0', 'nan', 'nat', 'none', 'null', '#n/a', 'na', '<na>',
+})
+_COLS_FECHA_ORACLE = frozenset({'FDD_FFINAL', 'FDD_FINICIAL', 'FDD_PERIODO_OP'})
+
+
+def _fechas_sin_valor(serie: pandas.Series) -> pandas.Series:
+    """True donde la fecha de origen debe quedar vacía (NULL en Oracle)."""
+    if pandas.api.types.is_datetime64_any_dtype(serie):
+        return serie.isna()
+    if pandas.api.types.is_numeric_dtype(serie):
+        return serie.isna() | (serie == 0)
+    as_str = serie.astype(str).str.strip().str.lower()
+    return serie.isna() | as_str.isin(_VALORES_FECHA_VACIA)
+
+
+def _parsear_columna_fecha(serie: pandas.Series) -> pandas.Series:
+    """Convierte a datetime y deja NaT donde el origen es nulo, vacío o cero."""
+    mask_vacio = _fechas_sin_valor(serie)
+    parsed = pandas.to_datetime(serie, errors='coerce', dayfirst=True)
+    parsed.loc[mask_vacio] = pandas.NaT
+    return parsed
+
+
+def _valor_fecha_para_oracle(x):
+    """Python datetime o None; evita NaT en el dict que envía oracledb."""
+    if x is None:
+        return None
+    try:
+        if pandas.isna(x):
+            return None
+    except (TypeError, ValueError):
+        pass
+    if isinstance(x, str):
+        if x.strip().lower() in _VALORES_FECHA_VACIA:
+            return None
+    if hasattr(x, 'to_pydatetime'):
+        return x.to_pydatetime()
+    return x
+
+
 def crear_QA_TFDDREGISTRO():
 
     print("");#salto de linea
@@ -50,9 +92,8 @@ def crear_QA_TFDDREGISTRO():
 
     #Format the date fields to use in operations into the code
     print("Format the date fields in datetime64 to use in operations into the code\n")
-    formato = "%d/%m/%Y %H:%M:%S.%f"
-    QA_TFDDREGISTRO["Fecha_Desenergizacion"] = pandas.to_datetime(QA_TFDDREGISTRO["Fecha_Desenergizacion"], errors='coerce')#, dayfirst=True)
-    QA_TFDDREGISTRO["Fecha_Energizacion"] = pandas.to_datetime(QA_TFDDREGISTRO["Fecha_Energizacion"], errors='coerce') #, dayfirst=True)
+    QA_TFDDREGISTRO["Fecha_Desenergizacion"] = _parsear_columna_fecha(QA_TFDDREGISTRO["Fecha_Desenergizacion"])
+    QA_TFDDREGISTRO["Fecha_Energizacion"] = _parsear_columna_fecha(QA_TFDDREGISTRO["Fecha_Energizacion"])
 
     #Craete QA_TFDDREGISTRO table structure as in the database BRAE exits
     print("Create QA_TFDDREGISTRO table structure as in the database BRAE exists\n")
@@ -231,13 +272,16 @@ def crear_QA_TFDDREGISTRO():
     def _normalize(df):
         df = df.copy()
         for col in df.columns:
-            if pandas.api.types.is_datetime64_any_dtype(df[col]):
-                # Convertir a Python datetime nativo (NaT → None)
-                df[col] = df[col].apply(lambda x: x.to_pydatetime() if pandas.notna(x) else None)
+            col_up = col.upper()
+            if col_up in _COLS_FECHA_ORACLE or pandas.api.types.is_datetime64_any_dtype(df[col]):
+                # Serie object: en datetime64, None se convierte otra vez a NaT y Oracle puede insertar 0
+                df[col] = pandas.Series(
+                    [_valor_fecha_para_oracle(x) for x in df[col]],
+                    index=df.index,
+                    dtype=object,
+                )
             elif df[col].dtype == 'object':
-                # Para columnas de texto, rellenar NaN con cadena vacía
                 df[col] = df[col].fillna('').astype(str)
-        # Mantener columnas en MAYÚSCULAS para Oracle (sin comillas dobles)
         df.columns = [c.upper() for c in df.columns]
         return df
 
@@ -256,7 +300,7 @@ def crear_QA_TFDDREGISTRO():
 
     QA_TFDDREGISTRO_AGREGAR_DB  = _normalize(QA_TFDDREGISTRO_AGREGAR)
     QA_TFDDREGISTRO_ELIMINAR_DB = _normalize(QA_TFDDREGISTRO_ELIMINAR)
-    print("  → DataFrames normalizados (datetime → Python datetime, NaT → None, columnas en MAYÚSCULAS)")
+    print("  → DataFrames normalizados (fechas → datetime nativo o NULL en Oracle, columnas en MAYÚSCULAS)")
 
     # Insertar nuevos datos
 
