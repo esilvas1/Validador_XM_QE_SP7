@@ -11,6 +11,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 import sys
 import os
 import io
+import errno
 import traceback
 import queue
 import threading
@@ -28,6 +29,90 @@ FOLDERS_MAP = {
     'rm': 'Reporte Mensual',
     'resultados': 'Resultados',
 }
+
+# Errores típicos cuando el montaje NFS/SMB del DFS no responde (p. ej. errno 112 Host is down).
+_DFS_UNAVAILABLE_ERRNOS = frozenset(
+    e
+    for e in (
+        errno.EHOSTDOWN,
+        errno.ESTALE,
+        errno.ETIMEDOUT,
+        errno.EIO,
+        errno.ENOTCONN,
+        errno.ENOLINK,
+        errno.ECONNREFUSED,
+        errno.ECONNRESET,
+        errno.ENETUNREACH,
+        errno.ENETDOWN,
+        getattr(errno, 'EREMOTEIO', None),
+    )
+    if e is not None
+)
+
+
+class DfsUnavailableError(Exception):
+    """El volumen DFS montado no está accesible."""
+
+
+def _is_dfs_unavailable_error(exc):
+    if not isinstance(exc, OSError):
+        return False
+    if getattr(exc, 'errno', None) in _DFS_UNAVAILABLE_ERRNOS:
+        return True
+    msg = str(exc).lower()
+    return 'host is down' in msg or 'stale file handle' in msg
+
+
+def _dfs_unavailable_message(exc, path_hint=''):
+    path_part = f' Ruta: {path_hint}.' if path_hint else ''
+    if _is_dfs_unavailable_error(exc):
+        return (
+            f'El almacenamiento DFS no está disponible ({exc}).'
+            f'{path_part} Verifique que el volumen esté montado en el contenedor '
+            f'(ej. /mnt/dfs/CISO01_CIMDESS) y que DATA_DIR_LINUX sea correcto.'
+        )
+    return f'Error de acceso al filesystem: {exc}.{path_part}'
+
+
+def _path_exists(path):
+    """Como Path.exists(), pero convierte caída del DFS en DfsUnavailableError."""
+    try:
+        return path.exists()
+    except OSError as e:
+        if _is_dfs_unavailable_error(e):
+            raise DfsUnavailableError(_dfs_unavailable_message(e, path)) from e
+        raise
+
+
+def _path_is_dir(path):
+    try:
+        return path.is_dir()
+    except OSError as e:
+        if _is_dfs_unavailable_error(e):
+            raise DfsUnavailableError(_dfs_unavailable_message(e, path)) from e
+        raise
+
+
+def _resolve_csv_path(archivo):
+    """Busca CSV en Resultados/ o en DATA_DIR. Retorna (path, dfs_error)."""
+    csv_path_resultados = Path(settings.DATA_DIR) / 'Resultados' / archivo
+    csv_path_base = Path(settings.DATA_DIR) / archivo
+    try:
+        if _path_exists(csv_path_resultados):
+            return csv_path_resultados, None
+        if _path_exists(csv_path_base):
+            return csv_path_base, None
+        return None, None
+    except DfsUnavailableError as e:
+        return None, str(e)
+
+
+def _json_dfs_unavailable(message, dfs_info=None, status=503):
+    payload = {'success': False, 'message': message}
+    if dfs_info:
+        payload['data_dir'] = dfs_info.get('data_dir_configurada')
+        payload['data_dir_real'] = dfs_info.get('data_dir_real')
+    return JsonResponse(payload, status=status)
 
 
 def _resolver_data_dir_para_dfs():
@@ -49,13 +134,22 @@ def _resolver_data_dir_para_dfs():
             ),
         }
 
-    accesible = data_dir.exists() and data_dir.is_dir()
+    try:
+        accesible = _path_exists(data_dir) and _path_is_dir(data_dir)
+        error = None if accesible else f"DATA_DIR no existe o no es accesible: {configurada}"
+    except DfsUnavailableError as e:
+        accesible = False
+        error = str(e)
+    except OSError as e:
+        accesible = False
+        error = _dfs_unavailable_message(e, configurada)
+
     return {
         'data_dir': data_dir,
         'data_dir_configurada': configurada,
         'data_dir_real': real,
         'accesible': accesible,
-        'error': None if accesible else f"DATA_DIR no existe o no es accesible: {configurada}",
+        'error': error,
     }
 
 
@@ -516,11 +610,9 @@ def validar_sp7_stream(request):
             import json
             import pandas as pd
             from pathlib import Path
-            csv_path = Path(settings.DATA_DIR) / 'Resultados' / 'CONSOLIDADO_SP7.csv'
-            if not csv_path.exists():
-                csv_path = Path(settings.DATA_DIR) / 'CONSOLIDADO_SP7.csv'
+            csv_path, _dfs_err = _resolve_csv_path('CONSOLIDADO_SP7.csv')
             dashboard_data = None
-            if csv_path.exists():
+            if csv_path:
                 df = pd.read_csv(csv_path)
                 if 'ESTADO_VALIDACION' in df.columns:
                     estado_counts = df['ESTADO_VALIDACION'].value_counts().to_dict()
@@ -583,13 +675,10 @@ def validar_sp7(request):
         import pandas as pd
         from pathlib import Path
         
-        # Buscar primero en data/Resultados, luego en DATA_DIR
-        csv_path_resultados = Path(settings.DATA_DIR) / 'Resultados' / 'CONSOLIDADO_SP7.csv'
-        csv_path_base = Path(settings.DATA_DIR) / 'CONSOLIDADO_SP7.csv'
-        csv_path = csv_path_resultados if csv_path_resultados.exists() else csv_path_base
+        csv_path, _dfs_err = _resolve_csv_path('CONSOLIDADO_SP7.csv')
         dashboard_data = None
-        
-        if csv_path.exists():
+
+        if csv_path:
             df = pd.read_csv(csv_path)
             
             if 'ESTADO_VALIDACION' in df.columns:
@@ -776,12 +865,10 @@ def descargar_csv_filtrado(request):
     estado = request.GET.get('estado', '')
     archivo = request.GET.get('archivo', 'CONSOLIDADO_SP7.csv')
     
-    # Buscar primero en data/Resultados, luego en DATA_DIR
-    csv_path_resultados = Path(settings.DATA_DIR) / 'Resultados' / archivo
-    csv_path_base = Path(settings.DATA_DIR) / archivo
-    csv_path = csv_path_resultados if csv_path_resultados.exists() else csv_path_base
-    
-    if not csv_path.exists():
+    csv_path, dfs_error = _resolve_csv_path(archivo)
+    if dfs_error:
+        return HttpResponse(dfs_error, status=503)
+    if not csv_path:
         return HttpResponse(f'Archivo {archivo} no encontrado', status=404)
     
     try:
@@ -809,6 +896,8 @@ def descargar_csv_filtrado(request):
         
         return response
         
+    except DfsUnavailableError as e:
+        return HttpResponse(str(e), status=503)
     except Exception as e:
         return HttpResponse(f'Error al procesar archivo: {str(e)}', status=500)
 
@@ -821,12 +910,10 @@ def obtener_datos_filtrados(request):
     estado = request.GET.get('estado', '')
     archivo = request.GET.get('archivo', 'CONSOLIDADO_SP7.csv')
     
-    # Buscar primero en data/Resultados, luego en DATA_DIR
-    csv_path_resultados = Path(settings.DATA_DIR) / 'Resultados' / archivo
-    csv_path_base = Path(settings.DATA_DIR) / archivo
-    csv_path = csv_path_resultados if csv_path_resultados.exists() else csv_path_base
-    
-    if not csv_path.exists():
+    csv_path, dfs_error = _resolve_csv_path(archivo)
+    if dfs_error:
+        return _json_dfs_unavailable(dfs_error)
+    if not csv_path:
         return JsonResponse({'success': False, 'message': f'Archivo {archivo} no encontrado'}, status=404)
     
     try:
@@ -862,6 +949,8 @@ def obtener_datos_filtrados(request):
             'mostrando': len(registros)
         })
         
+    except DfsUnavailableError as e:
+        return _json_dfs_unavailable(str(e))
     except Exception as e:
         return JsonResponse({'success': False, 'message': f'Error al procesar archivo: {str(e)}'}, status=500)
 
@@ -886,9 +975,10 @@ def dashboard_sp7_data(request):
 
     csv_path_resultados = Path(settings.DATA_DIR) / 'Resultados' / archivo
     csv_path_base = Path(settings.DATA_DIR) / archivo
-    csv_path = csv_path_resultados if csv_path_resultados.exists() else csv_path_base
-
-    if not csv_path.exists():
+    csv_path, dfs_error = _resolve_csv_path(archivo)
+    if dfs_error:
+        return _json_dfs_unavailable(dfs_error)
+    if not csv_path:
         return JsonResponse({
             'success': False,
             'message': f'Archivo {archivo} no encontrado en {csv_path_resultados} ni en {csv_path_base}.',
@@ -1050,6 +1140,16 @@ def dashboard_sp7_data(request):
             'top_circuitos': top_circuitos,
         })
 
+    except DfsUnavailableError as e:
+        return _json_dfs_unavailable(str(e))
+    except OSError as e:
+        if _is_dfs_unavailable_error(e):
+            return _json_dfs_unavailable(_dfs_unavailable_message(e, csv_path))
+        return JsonResponse({
+            'success': False,
+            'message': f'Error al acceder al archivo: {e}',
+            'traceback': traceback.format_exc(),
+        }, status=500)
     except Exception as e:
         return JsonResponse({
             'success': False,
@@ -1099,12 +1199,11 @@ def listar_archivos(request):
         )
 
     carpeta_path = dfs_info['data_dir'] / FOLDERS_MAP[carpeta]
-    
-    # Crear carpeta si no existe
-    if not carpeta_path.exists():
-        carpeta_path.mkdir(parents=True, exist_ok=True)
-    
+
     try:
+        if not _path_exists(carpeta_path):
+            carpeta_path.mkdir(parents=True, exist_ok=True)
+
         # Listar archivos (sin subdirectorios)
         archivos = []
         for item in carpeta_path.iterdir():
@@ -1121,7 +1220,11 @@ def listar_archivos(request):
             'data_dir': dfs_info['data_dir_configurada'],
             'data_dir_real': dfs_info['data_dir_real'],
         })
-        
+
+    except DfsUnavailableError as e:
+        return _json_dfs_unavailable(str(e), dfs_info)
+    except OSError as e:
+        return _json_dfs_unavailable(_dfs_unavailable_message(e, carpeta_path), dfs_info)
     except Exception as e:
         return JsonResponse({'success': False, 'message': f'Error al listar archivos: {str(e)}'}, status=500)
 
@@ -1154,9 +1257,9 @@ def subir_archivo(request):
         )
 
     carpeta_path = dfs_info['data_dir'] / FOLDERS_MAP[carpeta]
-    carpeta_path.mkdir(parents=True, exist_ok=True)
 
     try:
+        carpeta_path.mkdir(parents=True, exist_ok=True)
         subidos = 0
         for archivo in archivos:
             file_path = carpeta_path / archivo.name
@@ -1176,7 +1279,11 @@ def subir_archivo(request):
             'data_dir': dfs_info['data_dir_configurada'],
             'data_dir_real': dfs_info['data_dir_real'],
         })
-        
+
+    except DfsUnavailableError as e:
+        return _json_dfs_unavailable(str(e), dfs_info)
+    except OSError as e:
+        return _json_dfs_unavailable(_dfs_unavailable_message(e, carpeta_path), dfs_info)
     except Exception as e:
         return JsonResponse({'success': False, 'message': f'Error al subir archivos: {str(e)}'}, status=500)
 
@@ -1196,15 +1303,19 @@ def descargar_archivo(request):
         raise Http404(dfs_info['error'])
 
     file_path = dfs_info['data_dir'] / FOLDERS_MAP[carpeta] / archivo
-    
-    if not file_path.exists() or not file_path.is_file():
-        raise Http404('Archivo no encontrado')
-    
+
     try:
+        if not _path_exists(file_path) or not file_path.is_file():
+            raise Http404('Archivo no encontrado')
         response = FileResponse(open(file_path, 'rb'))
         response['Content-Disposition'] = f'attachment; filename="{archivo}"'
         return response
-        
+    except DfsUnavailableError as e:
+        raise Http404(str(e))
+    except OSError as e:
+        raise Http404(_dfs_unavailable_message(e, file_path))
+    except Http404:
+        raise
     except Exception as e:
         raise Http404(f'Error al descargar archivo: {str(e)}')
 
@@ -1239,17 +1350,19 @@ def eliminar_archivo(request):
         )
 
     file_path = dfs_info['data_dir'] / FOLDERS_MAP[carpeta] / archivo
-    
-    if not file_path.exists() or not file_path.is_file():
-        return JsonResponse({'success': False, 'message': 'Archivo no encontrado'}, status=404)
-    
+
     try:
+        if not _path_exists(file_path) or not file_path.is_file():
+            return JsonResponse({'success': False, 'message': 'Archivo no encontrado'}, status=404)
         os.remove(file_path)
         return JsonResponse({
             'success': True,
             'message': 'Archivo eliminado correctamente'
         })
-        
+    except DfsUnavailableError as e:
+        return _json_dfs_unavailable(str(e), dfs_info)
+    except OSError as e:
+        return _json_dfs_unavailable(_dfs_unavailable_message(e, file_path), dfs_info)
     except Exception as e:
         return JsonResponse({'success': False, 'message': f'Error al eliminar archivo: {str(e)}'}, status=500)
 
@@ -1283,11 +1396,11 @@ def eliminar_todos_archivos(request):
         )
 
     carpeta_path = dfs_info['data_dir'] / FOLDERS_MAP[carpeta]
-    
-    if not carpeta_path.exists():
-        return JsonResponse({'success': False, 'message': 'Carpeta no encontrada'}, status=404)
-    
+
     try:
+        if not _path_exists(carpeta_path):
+            return JsonResponse({'success': False, 'message': 'Carpeta no encontrada'}, status=404)
+
         eliminados = 0
         errores = []
         for item in carpeta_path.iterdir():
@@ -1310,6 +1423,10 @@ def eliminar_todos_archivos(request):
             'message': f'{eliminados} archivo(s) eliminado(s) correctamente',
             'eliminados': eliminados
         })
-        
+
+    except DfsUnavailableError as e:
+        return _json_dfs_unavailable(str(e), dfs_info)
+    except OSError as e:
+        return _json_dfs_unavailable(_dfs_unavailable_message(e, carpeta_path), dfs_info)
     except Exception as e:
         return JsonResponse({'success': False, 'message': f'Error al eliminar archivos: {str(e)}'}, status=500)
