@@ -7,6 +7,7 @@ from . import views
 app_name = 'validacion_app'
 
 urlpatterns = [
+    path('health/', views.health, name='health'),
     path('', views.index, name='index'),
     path('herramientas/iniciar-sesion/', views.herramientas_login, name='herramientas_login'),
     path('herramientas/cerrar-sesion/', views.herramientas_logout, name='herramientas_logout'),

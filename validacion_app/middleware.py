@@ -20,6 +20,7 @@ class HerramientasLoginRequiredMiddleware(MiddlewareMixin):
         'dashboard_sp7_data',
         'herramientas_login',
         'herramientas_logout',
+        'health',
     })
 
     def process_view(self, request, view_func, view_args, view_kwargs):

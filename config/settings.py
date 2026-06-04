@@ -163,11 +163,52 @@ if os.name != 'nt' and data_dir_env.startswith('\\\\'):
         data_dir_env,
     )
 
-if not DATA_DIR.exists() or not DATA_DIR.is_dir():
+def _data_dir_ok_at_startup(path):
+    """No debe lanzar OSError: un DFS caído no debe impedir arrancar Django/gunicorn."""
+    try:
+        return path.exists() and path.is_dir()
+    except OSError as exc:
+        logger.warning(
+            "DATA_DIR no accesible en arranque (%s): %s. "
+            "La app iniciará; monte el DFS antes de usar archivos o procesos.",
+            path,
+            exc,
+        )
+        return False
+
+
+if not _data_dir_ok_at_startup(DATA_DIR):
     logger.warning(
-        "DATA_DIR no existe o no es accesible en arranque: %s. "
-        "La app iniciara, pero los procesos de negocio fallaran hasta que el DFS sea accesible.",
+        "DATA_DIR no existe o no es un directorio en arranque: %s",
         DATA_DIR,
     )
 
 OUTPUT_DIR = BASE_DIR / 'output'
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '[{levelname}] {asctime} {name}: {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': os.environ.get('LOG_LEVEL', 'INFO'),
+    },
+    'loggers': {
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+    },
+}

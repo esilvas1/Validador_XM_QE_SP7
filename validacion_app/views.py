@@ -173,6 +173,13 @@ def _resolver_data_dir_para_dfs():
     }
 
 
+def health(request):
+    """Comprobación ligera sin DFS ni sesión (diagnóstico en servidor)."""
+    from django.http import HttpResponse
+
+    return HttpResponse('ok', content_type='text/plain; charset=utf-8')
+
+
 def index(request):
     """Portada: dashboard del CONSOLIDADO_SP7 (antes en /dashboard-sp7/)."""
     return render(request, 'validacion_app/dashboard.html')
