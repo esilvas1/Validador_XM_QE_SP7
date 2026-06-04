@@ -567,19 +567,28 @@
     function cargarArchivos(carpeta) {
         const url = '{% url "validacion_app:listar_archivos" %}' + `?carpeta=${carpeta}`;
         const container = document.getElementById(`files-${carpeta}`);
-        
-        fetch(url)
-            .then(response => response.json())
-            .then(data => {
+        if (!container) return;
+
+        fetch(url, {
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        })
+            .then(async response => {
+                const data = await response.json().catch(() => ({}));
+                if (response.status === 401) {
+                    container.innerHTML = '<div class="empty-folder">Sesión requerida. <a href="{% url "validacion_app:herramientas_login" %}?next={% url "validacion_app:archivos" %}">Iniciar sesión</a></div>';
+                    return;
+                }
                 if (data.success) {
                     mostrarArchivos(carpeta, data.archivos);
                     actualizarContador(carpeta, data.archivos.length);
                 } else {
-                    container.innerHTML = `<div class="empty-folder">Error: ${data.message}</div>`;
+                    const msg = data.message || `Error HTTP ${response.status}`;
+                    container.innerHTML = `<div class="empty-folder">Error: ${msg}</div>`;
                 }
             })
-            .catch(error => {
-                container.innerHTML = `<div class="empty-folder">Error al cargar archivos</div>`;
+            .catch(() => {
+                container.innerHTML = '<div class="empty-folder">Error de conexión al listar archivos (revise sesión y montaje DFS)</div>';
             });
     }
     

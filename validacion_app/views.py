@@ -115,11 +115,31 @@ def _json_dfs_unavailable(message, dfs_info=None, status=503):
     return JsonResponse(payload, status=status)
 
 
+def _safe_realpath(path):
+    """realpath sin tumbar la vista si el montaje DFS no responde."""
+    try:
+        return os.path.realpath(path)
+    except OSError as e:
+        if _is_dfs_unavailable_error(e):
+            return str(path)
+        raise
+
+
 def _resolver_data_dir_para_dfs():
     """Valida que DATA_DIR apunte a un DFS real accesible en el servidor actual."""
     data_dir = Path(settings.DATA_DIR)
     configurada = str(data_dir)
-    real = os.path.realpath(configurada)
+
+    try:
+        real = _safe_realpath(configurada)
+    except OSError as e:
+        return {
+            'data_dir': data_dir,
+            'data_dir_configurada': configurada,
+            'data_dir_real': configurada,
+            'accesible': False,
+            'error': _dfs_unavailable_message(e, configurada),
+        }
 
     if os.name != 'nt' and configurada.startswith('\\\\'):
         return {
@@ -1160,7 +1180,16 @@ def dashboard_sp7_data(request):
 
 def archivos_view(request):
     """Vista para gestión de archivos"""
-    dfs_info = _resolver_data_dir_para_dfs()
+    try:
+        dfs_info = _resolver_data_dir_para_dfs()
+    except Exception as e:
+        dfs_info = {
+            'data_dir': Path(settings.DATA_DIR),
+            'data_dir_configurada': str(settings.DATA_DIR),
+            'data_dir_real': str(settings.DATA_DIR),
+            'accesible': False,
+            'error': f'No se pudo validar DATA_DIR: {e}',
+        }
     data_dir = dfs_info['data_dir']
     return render(
         request,
