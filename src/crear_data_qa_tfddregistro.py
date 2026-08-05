@@ -28,9 +28,44 @@ def _fechas_sin_valor(serie: pandas.Series) -> pandas.Series:
 
 
 def _parsear_columna_fecha(serie: pandas.Series) -> pandas.Series:
-    """Convierte a datetime y deja NaT donde el origen es nulo, vacío o cero."""
+    """Convierte a datetime y deja NaT donde el origen es nulo, vacío o cero.
+
+    Orden de formatos:
+    1) ISO del CONSOLIDADO_SP7 validado (%Y-%m-%d ...)
+    2) DD/MM del SP7 original
+    3) Inferencia dayfirst solo para residuales no-ISO
+
+    No usar dayfirst=True sobre ISO: pandas interpreta YYYY-MM-DD como
+    YYYY-DD-MM cuando el día <= 12 (p.ej. 2026-06-04 -> 2026-04-06).
+    """
     mask_vacio = _fechas_sin_valor(serie)
-    parsed = pandas.to_datetime(serie, errors='coerce', dayfirst=True)
+    parsed = pandas.to_datetime(serie, format='%Y-%m-%d %H:%M:%S.%f', errors='coerce')
+    if parsed.isna().any():
+        parsed = parsed.fillna(
+            pandas.to_datetime(serie, format='%Y-%m-%d %H:%M:%S', errors='coerce')
+        )
+    if parsed.isna().any():
+        parsed = parsed.fillna(
+            pandas.to_datetime(serie, format='%d/%m/%Y %H:%M:%S.%f', errors='coerce')
+        )
+    if parsed.isna().any():
+        parsed = parsed.fillna(
+            pandas.to_datetime(serie, format='%d/%m/%Y %H:%M:%S', errors='coerce')
+        )
+    if parsed.isna().any():
+        as_str = serie.astype(str).str.strip()
+        mask_iso = parsed.isna() & as_str.str.match(r'^\d{4}-\d{2}-\d{2}')
+        if mask_iso.any():
+            parsed = parsed.fillna(
+                pandas.to_datetime(serie, format='%Y-%m-%d', errors='coerce')
+            )
+    if parsed.isna().any():
+        as_str = serie.astype(str).str.strip()
+        mask_no_iso = parsed.isna() & ~as_str.str.match(r'^\d{4}-\d{2}-\d{2}')
+        if mask_no_iso.any():
+            parsed = parsed.fillna(
+                pandas.to_datetime(serie.where(mask_no_iso), errors='coerce', dayfirst=True)
+            )
     parsed.loc[mask_vacio] = pandas.NaT
     return parsed
 
@@ -52,12 +87,69 @@ def _valor_fecha_para_oracle(x):
     return x
 
 
+def actualizar_qa_ttt2_registro_desde_oracle():
+    """
+    Refresca DATA_DIR/QA_TTT2_REGISTRO.csv desde ORACLE_HOST:
+    1) borra el CSV si existe
+    2) SELECT * FROM QA_TTT2_REGISTRO
+    3) arma el DataFrame
+    4) guarda el CSV en la misma ubicación
+    """
+    import shutil
+    import tempfile
+    from sqlalchemy import text
+    from conexion import open_conexion
+    from loader import get_data_dir
+
+    ruta_csv = os.path.join(get_data_dir(), 'QA_TTT2_REGISTRO.csv')
+    print("Actualizando QA_TTT2_REGISTRO.csv desde Oracle (ORACLE_HOST)...")
+    print(f"  Destino: {ruta_csv}")
+
+    if os.path.isfile(ruta_csv):
+        os.remove(ruta_csv)
+        print("  → Archivo existente eliminado")
+    else:
+        print("  → No había archivo previo")
+
+    conn, engine = open_conexion()
+    if conn is None or engine is None:
+        raise ConnectionError(
+            "No se pudo conectar a Oracle (ORACLE_HOST) para actualizar QA_TTT2_REGISTRO"
+        )
+
+    try:
+        print("  → Ejecutando SELECT * FROM QA_TTT2_REGISTRO ...")
+        df = pandas.read_sql(text("SELECT * FROM QA_TTT2_REGISTRO"), conn)
+        df.columns = [str(c).upper() for c in df.columns]
+        print(f"  → DataFrame creado: {len(df)} filas, {len(df.columns)} columnas")
+    finally:
+        conn.close()
+
+    with tempfile.NamedTemporaryFile(
+        mode='w', delete=False, suffix='.csv', encoding='utf-8', newline=''
+    ) as tmp:
+        tmp_path = tmp.name
+    try:
+        df.to_csv(tmp_path, index=False)
+        shutil.move(tmp_path, ruta_csv)
+    except Exception:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+        raise
+
+    print(f"  ✅ QA_TTT2_REGISTRO.csv guardado ({len(df)} registros)\n")
+    return df
+
+
 def crear_QA_TFDDREGISTRO():
 
     print("");#salto de linea
 
     from loader import get_data_dir
     ruta_salida = get_data_dir()
+
+    # Primer paso: refrescar QA_TTT2_REGISTRO desde Oracle antes de usarlo
+    actualizar_qa_ttt2_registro_desde_oracle()
 
     #Create the dataframe QA_TFDDREGISTRO
     print("create the dataframe QA_TFDDREGISTRO\n")
@@ -188,6 +280,9 @@ def crear_QA_TFDDREGISTRO():
     print("Calculando FDD_PERIODO_TC1 (mes más frecuente en FDD_FINICIAL)...")
     QA_TFDDREGISTRO['MES_INICIAL'] = QA_TFDDREGISTRO['FDD_FINICIAL'].dt.to_period('M').dt.to_timestamp()
     conteo_meses = QA_TFDDREGISTRO['MES_INICIAL'].value_counts()
+    print("  Conteo por mes de FDD_FINICIAL:")
+    for mes, n in conteo_meses.items():
+        print(f"    {mes.strftime('%Y%m')}: {n}")
     mes_mas_frecuente = conteo_meses.idxmax()
     QA_TFDDREGISTRO['FDD_PERIODO_TC1'] = mes_mas_frecuente.strftime('%Y%m')
     QA_TFDDREGISTRO.drop(columns=['MES_INICIAL'], inplace=True)
